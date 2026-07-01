@@ -1,6 +1,7 @@
 from typing import Annotated
 
 import typer
+from superset_io.cli import app as superset_io_app
 
 from coasti.logger import log, setup_logging_handler
 
@@ -57,3 +58,8 @@ def get_version():
 
 app.add_typer(init_app)  # only one command so far
 app.add_typer(product_app, name="product", help="List, add or update products.")
+app.add_typer(
+    superset_io_app,
+    name="superset-io",
+    help="Import or export superset frontend assets.",
+)

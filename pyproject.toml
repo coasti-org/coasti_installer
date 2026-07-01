@@ -1,6 +1,6 @@
 [project]
 name = "coasti"
-version = "0.2.1"
+version = "0.2.2"
 description = "Installer for Coasti, the Open-Source Business Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -22,6 +22,7 @@ dependencies = [
     "copier>=9.12.0",
     "platformdirs>=4.5.1",
     "sphinxcontrib-typer[docs]>=0.8.1",
+    "coasti-superset-io @ git+https://github.com/linkFISH-Consulting/coasti_superset_io"
 ]
 
 [dependency-groups]
@@ -33,7 +34,11 @@ dev = [
     "pre-commit>=4.5.1",
 ]
 lint = ["ruff>=0.14.14"]
-typed = ["mypy>=1.19.1", "types-PyYAML"]
+typed = [
+    "mypy>=1.19.1",
+    "types-Jinja2",
+    "types-PyYAML",
+]
 docs = [
     "furo>=2025.12.19",
     "myst-nb>=1.3.0",
