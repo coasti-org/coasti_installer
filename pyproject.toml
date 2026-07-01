@@ -1,6 +1,6 @@
 [project]
 name = "coasti"
-version = "0.2.1"
+version = "0.2.2"
 description = "Installer for Coasti, the Open-Source Business Intelligence Framework"
 readme = "README.md"
 authors = [

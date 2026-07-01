@@ -1,6 +1,7 @@
 [![Python checks](https://github.com/linkFISH-Consulting/coasti_installer/actions/workflows/python.yml/badge.svg?branch=main)](https://github.com/linkFISH-Consulting/coasti_installer/actions/workflows/python.yml)
 [![PyPI - Version](https://img.shields.io/pypi/v/coasti)](https://pypi.org/project/coasti/)
 [![Documentation](https://app.readthedocs.org/projects/coasti/badge/?version=latest&style=flat)](https://coasti.readthedocs.io/en/latest/)
+[![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/copier-org/copier)
 
 # Coasti installer
 
