@@ -281,6 +281,7 @@ name = "coasti"
 version = "0.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "coasti-superset-io" },
     { name = "copier" },
     { name = "platformdirs" },
     { name = "python-dotenv" },
@@ -307,6 +308,7 @@ dev = [
     { name = "sphinx-design" },
     { name = "sphinxcontrib-mermaid" },
     { name = "sphinxcontrib-typer", extra = ["html"] },
+    { name = "types-jinja2" },
     { name = "types-pyyaml" },
 ]
 docs = [
@@ -330,11 +332,13 @@ test = [
 ]
 typed = [
     { name = "mypy" },
+    { name = "types-jinja2" },
     { name = "types-pyyaml" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "coasti-superset-io", git = "https://github.com/linkFISH-Consulting/coasti_superset_io" },
     { name = "copier", specifier = ">=9.12.0" },
     { name = "platformdirs", specifier = ">=4.5.1" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
@@ -360,6 +364,7 @@ dev = [
     { name = "sphinx-design", specifier = ">=0.6.1" },
     { name = "sphinxcontrib-mermaid", specifier = ">=2.0.0" },
     { name = "sphinxcontrib-typer", extras = ["html"], specifier = ">=0.7.2" },
+    { name = "types-jinja2" },
     { name = "types-pyyaml" },
 ]
 docs = [
@@ -380,7 +385,20 @@ test = [
 ]
 typed = [
     { name = "mypy", specifier = ">=1.19.1" },
+    { name = "types-jinja2" },
     { name = "types-pyyaml" },
+]
+
+[[package]]
+name = "coasti-superset-io"
+version = "0.1.0"
+source = { git = "https://github.com/linkFISH-Consulting/coasti_superset_io#6fc34eec604badbf8df56c0bbffd60ab19cf719c" }
+dependencies = [
+    { name = "prompt-toolkit" },
+    { name = "python-dotenv" },
+    { name = "requests" },
+    { name = "ruamel-yaml" },
+    { name = "typer" },
 ]
 
 [[package]]
@@ -2449,6 +2467,27 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f5/24/cb09efec5cc954f7f9b930bf8279447d24618bb6758d4f6adf2574c41780/typer-0.24.1.tar.gz", hash = "sha256:e39b4732d65fbdcde189ae76cf7cd48aeae72919dea1fdfc16593be016256b45", size = 118613, upload-time = "2026-02-21T16:54:40.609Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/4a/91/48db081e7a63bb37284f9fbcefda7c44c277b18b0e13fbc36ea2335b71e6/typer-0.24.1-py3-none-any.whl", hash = "sha256:112c1f0ce578bfb4cab9ffdabc68f031416ebcc216536611ba21f04e9aa84c9e", size = 56085, upload-time = "2026-02-21T16:54:41.616Z" },
+]
+
+[[package]]
+name = "types-jinja2"
+version = "2.11.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "types-markupsafe" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/46/c4/b82309bfed8195de7997672deac301bd6f5bd5cbb6a3e392b7fe780d7852/types-Jinja2-2.11.9.tar.gz", hash = "sha256:dbdc74a40aba7aed520b7e4d89e8f0fe4286518494208b35123bcf084d4b8c81", size = 13302, upload-time = "2021-11-26T06:21:17.496Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b7/b0/e79d84748f1d34304f13191424348a719c3febaa3493835370fe9528e1e6/types_Jinja2-2.11.9-py3-none-any.whl", hash = "sha256:60a1e21e8296979db32f9374d8a239af4cb541ff66447bb915d8ad398f9c63b2", size = 18190, upload-time = "2021-11-26T06:21:16.18Z" },
+]
+
+[[package]]
+name = "types-markupsafe"
+version = "1.1.10"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/39/31/b5f059142d058aec41e913d8e0eff0a967e7bc46f9a2ba2f31bc11cff059/types-MarkupSafe-1.1.10.tar.gz", hash = "sha256:85b3a872683d02aea3a5ac2a8ef590193c344092032f58457287fbf8e06711b1", size = 2986, upload-time = "2021-11-27T03:18:07.558Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/d6/b8effb1c48539260a5eb4196afc55efac4ea1684a4991977555eb266b2ef/types_MarkupSafe-1.1.10-py3-none-any.whl", hash = "sha256:ca2bee0f4faafc45250602567ef38d533e877d2ddca13003b319c551ff5b3cc5", size = 3998, upload-time = "2021-11-27T03:18:06.398Z" },
 ]
 
 [[package]]

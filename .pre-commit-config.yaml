@@ -1,6 +1,10 @@
 # to enable:
 # uv tool install pre-commit
 # pre-commit install
+#
+# Note: mypy is run via `uv run mypy` so the hook uses the project's own
+# virtual environment (same deps, stubs, and versions as local dev).
+# No `additional_dependencies` are needed: uv resolves them from pyproject.toml.
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -13,8 +17,18 @@ repos:
       - id: ruff-format
         args: [--config=./pyproject.toml]
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.9.0
+  # Local hook: run mypy straight from the project's .venv.
+  # This bypasses any PATH issues (e.g. GUI git clients like Sublime Merge
+  # launch hooks with a stripped PATH where `uv` isn't found) and still
+  # uses the exact deps/stubs that `uv sync` resolved.
+  # Requires `uv sync` (or `uv sync --all-extras`) to have been run once.
+  - repo: local
     hooks:
       - id: mypy
-        args: [--config-file=./pyproject.toml]
+        name: mypy
+        entry: .venv/bin/mypy
+        language: system
+        types: [python]
+        pass_filenames: false
+        require_serial: true
+        args: [--config-file=./pyproject.toml, .]
