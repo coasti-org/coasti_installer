@@ -12,6 +12,7 @@ from rich.console import Console
 from rich.table import Table
 from ruamel.yaml import YAML
 
+from coasti.cli_context import ensure_coasti_namespace
 from coasti.git import can_access_git_repo, copier_git_injection
 from coasti.logger import log
 from coasti.prompt import (
@@ -26,16 +27,21 @@ yaml = YAML()
 app = typer.Typer()
 
 
-@app.callback()
-def entrypoint(ctx: typer.Context):
-    """Callback to make sure requirements are met to work with products."""
+def ensure_base_dir(ctx: typer.Context):
+    """Check the CoastiContext has a base_dir valid for managing products."""
 
-    quiet: bool = ctx.obj.get("quiet", False)
-    coasti_base_dir = Path(os.getenv("COASTI_BASE_DIR", Path.cwd())).absolute()
+    coasti_ctx = ensure_coasti_namespace(ctx)
 
-    dir_is_valid = (coasti_base_dir / "config" / "products.yml").is_file()
-    if not dir_is_valid and not quiet:
-        coasti_base_dir = Path(
+    # use getattr / setattr because for now, we dont want this attr to be part of
+    # the global coasti context type
+    if getattr(coasti_ctx, "base_dir_valid", False):
+        return coasti_ctx
+
+    base_dir = Path(os.getenv("COASTI_BASE_DIR", coasti_ctx.base_dir)).absolute()
+
+    dir_is_valid = (base_dir / "config" / "products.yml").is_file()
+    if not dir_is_valid and not coasti_ctx.quiet:
+        base_dir = Path(
             prompt_single(
                 help="Specify the coasti directory (cd there or set COASTI_BASE_DIR "
                 "env var to avoid this prompt)",
@@ -44,13 +50,16 @@ def entrypoint(ctx: typer.Context):
                 # FIXME: add validator so these kind of checks can trigger re-prompt
             )
         ).absolute()
-        dir_is_valid = (coasti_base_dir / "config" / "products.yml").is_file()
+        dir_is_valid = (base_dir / "config" / "products.yml").is_file()
 
     if not dir_is_valid:
-        log.error(f"Invalid coasti base dir: {str(coasti_base_dir)}")
+        log.error(f"Invalid coasti base dir: {str(base_dir)}")
         raise typer.Exit(code=1)
 
-    ctx.obj["coasti_base_dir"] = coasti_base_dir
+    coasti_ctx.base_dir = base_dir
+    setattr(coasti_ctx, "base_dir_valid", True)
+
+    return coasti_ctx
 
 
 @app.command()
@@ -62,7 +71,9 @@ def list(ctx: typer.Context):
     table.add_column("Property", style="magenta", justify="right")
     table.add_column("Value", style="green")
 
-    yaml_io = ProductsYamlIO(ctx.obj["coasti_base_dir"])
+    coasti_ctx = ensure_base_dir(ctx)
+
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
     for pid in yaml_io.product_ids:
         p = yaml_io.get_enry(pid)
         for idx, (key, value) in enumerate(p.items()):
@@ -97,7 +108,7 @@ def add(
 ):
     """Add a product to coasti"""
 
-    quiet: bool = ctx.obj.get("quiet", False)
+    coasti_ctx = ensure_base_dir(ctx)
 
     # Parse skip-prompt answers and internal variables for answers_file
     questions = deepcopy(PRODUCT_QUESTIONS)
@@ -130,7 +141,7 @@ def add(
             "Optional: " + questions["vcs_auth_type"]["help"]
         )
 
-    yaml_io = ProductsYamlIO(ctx.obj["coasti_base_dir"])
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
     p_res = prompt_like_copier(
         questions=questions,
         data=copier_data,
@@ -147,7 +158,7 @@ def add(
             raise typer.Exit(code=1)
 
     if product.id in yaml_io.product_ids:
-        if quiet or not prompt_single(
+        if coasti_ctx.quiet or not prompt_single(
             f"Product id {product.id} already exists. Overwrite?",
             type=bool,
             default=True,
@@ -157,7 +168,7 @@ def add(
 
     product.write()
 
-    if not quiet and prompt_single(
+    if not coasti_ctx.quiet and prompt_single(
         f"Do you want to install {product.id} now?", type=bool, default=True
     ):
         install(ctx, product.id)
@@ -178,7 +189,9 @@ def install(
 
     Uses copier, git and details from config/products.yml
     """
-    yaml_io = ProductsYamlIO(ctx.obj["coasti_base_dir"])
+    coasti_ctx = ensure_base_dir(ctx)
+
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
     pid = _product_id_from_yaml_or_prompt(yaml_io, pid)
     try:
         product = yaml_io.get_product(pid)
@@ -214,7 +227,9 @@ def update(
 
     Uses copier, git and details from config/products.yml
     """
-    yaml_io = ProductsYamlIO(ctx.obj["coasti_base_dir"])
+    coasti_ctx = ensure_base_dir(ctx)
+
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
     pid = _product_id_from_yaml_or_prompt(yaml_io, pid)
     try:
         product = yaml_io.get_product(pid)

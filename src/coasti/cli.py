@@ -3,6 +3,7 @@ from typing import Annotated
 import typer
 from superset_io.cli import app as superset_io_app
 
+from coasti.cli_context import ensure_coasti_namespace
 from coasti.logger import log, setup_logging_handler
 
 from .init import app as init_app
@@ -36,9 +37,9 @@ def main(
     setup_logging_handler(verbose)
     app.pretty_exceptions_short = False
 
-    # Store shared state for all subcommands:
-    ctx.ensure_object(dict)
-    ctx.obj["quiet"] = quiet
+    # Store shared state for all coasti subcommands.
+    coasti_ctx = ensure_coasti_namespace(ctx)
+    coasti_ctx.quiet = quiet
 
 
 @app.command()
