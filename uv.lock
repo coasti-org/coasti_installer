@@ -278,7 +278,7 @@ wheels = [
 
 [[package]]
 name = "coasti"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "." }
 dependencies = [
     { name = "coasti-superset-io" },
@@ -287,7 +287,6 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "ruamel-yaml" },
-    { name = "sphinxcontrib-typer" },
     { name = "typer" },
 ]
 
@@ -338,13 +337,12 @@ typed = [
 
 [package.metadata]
 requires-dist = [
-    { name = "coasti-superset-io", git = "https://github.com/linkFISH-Consulting/coasti_superset_io" },
+    { name = "coasti-superset-io", specifier = ">=0.1.2" },
     { name = "copier", specifier = ">=9.12.0" },
     { name = "platformdirs", specifier = ">=4.5.1" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },
     { name = "ruamel-yaml", specifier = ">=0.18.10" },
-    { name = "sphinxcontrib-typer", extras = ["docs"], specifier = ">=0.8.1" },
     { name = "typer", specifier = ">=0.15.2" },
 ]
 
@@ -363,7 +361,7 @@ dev = [
     { name = "sphinx-copybutton", specifier = ">=0.5.2" },
     { name = "sphinx-design", specifier = ">=0.6.1" },
     { name = "sphinxcontrib-mermaid", specifier = ">=2.0.0" },
-    { name = "sphinxcontrib-typer", extras = ["html"], specifier = ">=0.7.2" },
+    { name = "sphinxcontrib-typer", extras = ["html"], specifier = ">=0.8.1" },
     { name = "types-jinja2" },
     { name = "types-pyyaml" },
 ]
@@ -376,7 +374,7 @@ docs = [
     { name = "sphinx-copybutton", specifier = ">=0.5.2" },
     { name = "sphinx-design", specifier = ">=0.6.1" },
     { name = "sphinxcontrib-mermaid", specifier = ">=2.0.0" },
-    { name = "sphinxcontrib-typer", extras = ["html"], specifier = ">=0.7.2" },
+    { name = "sphinxcontrib-typer", extras = ["html"], specifier = ">=0.8.1" },
 ]
 lint = [{ name = "ruff", specifier = ">=0.14.14" }]
 test = [
@@ -391,14 +389,18 @@ typed = [
 
 [[package]]
 name = "coasti-superset-io"
-version = "0.1.0"
-source = { git = "https://github.com/linkFISH-Consulting/coasti_superset_io#6fc34eec604badbf8df56c0bbffd60ab19cf719c" }
+version = "0.1.2"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "prompt-toolkit" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "ruamel-yaml" },
     { name = "typer" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/68/dd2f8e6daf717c8bc2f953e0da535de99f45c71399183f6b348d5f48ecdd/coasti_superset_io-0.1.2.tar.gz", hash = "sha256:873ef5bc52fd7bd6dbddc7ea10542936dc3ed80cdae33546e840c469a32f15c7", size = 734924, upload-time = "2026-07-15T07:45:39.539Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/f4/6c0cf4ec805bbcfb013872db173831bb920834f80e529b1cb5cb836e4802/coasti_superset_io-0.1.2-py3-none-any.whl", hash = "sha256:19dfea9583e13d28a42eabee2653ac34da8e52818c0f46c2c8bdf38d883e2d8a", size = 29057, upload-time = "2026-07-15T07:45:42.217Z" },
 ]
 
 [[package]]
