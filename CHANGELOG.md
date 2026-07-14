@@ -11,12 +11,19 @@ TLDR:
 - Breaking Changes 1.0.0 (Major Version)
 
 
+## 0.2.3 - 2026-07-14
+
+### Fixed
+
+- Bundled `superset-io` command now handles the context correctly
+- Removed Sphinx from main dependencies (now only `docs` group, and will be removed when we ship the separate docs repo)
+
 ## 0.2.2 - 2026-07-01
 
 ### Added
 
 - MIT License
-- Now shipping superset-io as a dependency and sub-command
+- Now shipping `superset-io` as a dependency and sub-command
 
 ## 0.2.1 - 2026-03-30
 
