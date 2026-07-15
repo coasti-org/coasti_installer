@@ -1,6 +1,6 @@
 [project]
 name = "coasti"
-version = "0.2.2"
+version = "0.2.3"
 description = "Installer for Coasti, the Open-Source Business Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -15,14 +15,13 @@ classifiers = [
 requires-python = ">=3.11,<3.15"
 
 dependencies = [
+    "coasti-superset-io>=0.1.2",
     "python-dotenv>=1.0.1",
     "typer>=0.15.2",
     "PyYAML>=6.0.2",
     "ruamel.yaml>=0.18.10",
     "copier>=9.12.0",
     "platformdirs>=4.5.1",
-    "sphinxcontrib-typer[docs]>=0.8.1",
-    "coasti-superset-io @ git+https://github.com/linkFISH-Consulting/coasti_superset_io"
 ]
 
 [dependency-groups]
@@ -47,7 +46,7 @@ docs = [
     "sphinx-autoapi>=3.6.1",
     "sphinx-design>=0.6.1",
     "sphinx-copybutton>=0.5.2",
-    "sphinxcontrib-typer[html]>=0.7.2",
+    "sphinxcontrib-typer[html]>=0.8.1",
     "sphinxcontrib-mermaid>=2.0.0",
 ]
 test = ["pytest>=9.0.2", "pytest-cov>=7.0.0"]
@@ -95,5 +94,5 @@ coasti = "coasti:cli.app"
 
 [project.urls]
 "Home Page" = "https://coasti.org/"
-Repository = "https://github.com/linkFISH-Consulting/coasti_installer"
-GitHub = "https://github.com/linkFISH-Consulting/coasti_installer"
+Repository = "https://github.com/coasti-org/coasti_installer"
+GitHub = "https://github.com/coasti-org/coasti_installer"

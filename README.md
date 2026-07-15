@@ -1,9 +1,10 @@
+# Coasti installer
+
 [![Python checks](https://github.com/linkFISH-Consulting/coasti_installer/actions/workflows/python.yml/badge.svg?branch=main)](https://github.com/linkFISH-Consulting/coasti_installer/actions/workflows/python.yml)
 [![PyPI - Version](https://img.shields.io/pypi/v/coasti)](https://pypi.org/project/coasti/)
 [![Documentation](https://app.readthedocs.org/projects/coasti/badge/?version=latest&style=flat)](https://coasti.readthedocs.io/en/latest/)
+ [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Copier](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/copier-org/copier/master/img/badge/badge-grayscale-inverted-border-orange.json)](https://github.com/copier-org/copier)
-
-# Coasti installer
 
 ## Get started
 
@@ -33,14 +34,5 @@ Create a coasti project and install products
 coasti init my_coasti_project
 cd my_coasti_project
 
-coasti product add "https://github.com/my_product_repo.git"
+coasti product add "https://github.com/coasti-org/superset_docker"
 ```
-
-## Further reading
-
-- [Changelog](https://github.com/linkFISH-Consulting/coasti_installer/CHANGELOG.md)
-- [Docs](https://github.com/linkFISH-Consulting/coasti_installer/docs)
-    - [installer specs](https://github.com/linkFISH-Consulting/coasti_installer/docs/installer_specs.md)
-    - [contributing](https://github.com/linkFISH-Consulting/coasti_installer/docs/contribution_guide.md)
-    - [list of environment variables](https://github.com/linkFISH-Consulting/coasti_installer/docs/env_vars.md)
-    - [dev container](https://github.com/linkFISH-Consulting/coasti_installer/docker/README.md)
