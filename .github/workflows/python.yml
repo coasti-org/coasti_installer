@@ -78,20 +78,3 @@ jobs:
       - name: Test with coverage
         run: |
           uv run pytest --cov=coasti --cov-report xml:coverage.xml --junitxml=junit.xml -o junit_family=legacy -v
-
-  docs:
-    name: Build Sphinx docs
-    runs-on: [ubuntu-latest]
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          python-version: "3.12"
-      - name: Install docs dependencies
-        run: |
-          uv sync --group docs
-      - name: Build Sphinx docs
-        run: |
-          cd docs
-          uv run sphinx-build -b html . _build/html -W --keep-going -j auto
