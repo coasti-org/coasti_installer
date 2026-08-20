@@ -17,8 +17,16 @@ import questionary  # used by copier, we mimic
 from copier import JSONSerializable, Phase, Worker
 from copier._types import MISSING
 from copier._user_data import AnswersMap, Question
-from jinja2.sandbox import SandboxedEnvironment
 from pydantic import ValidationError
+
+try:
+    # Recent copier versions (> 9.17.0) validate `Question.jinja_env` against
+    # their own SandboxedEnvironment subclass, not the plain jinja2 one.
+    from copier._jinja_ext import SandboxedEnvironment  # type: ignore[attr-defined]
+except ImportError:  # pragma: no cover - older copier
+    # The two ignores cover both cases: on old copier the import above is
+    # unresolved, on new copier this fallback narrows the type.
+    from jinja2.sandbox import SandboxedEnvironment  # type: ignore[assignment]
 
 # -------------------------- From dict of questions -------------------------- #
 

@@ -1,8 +1,16 @@
 from __future__ import annotations
 
-from _pytest.monkeypatch import MonkeyPatch
+from pathlib import Path
 
-from coasti.prompt import PromptResponse, QuestionsDict, prompt_like_copier
+from _pytest.monkeypatch import MonkeyPatch
+from copier._user_data import AnswersMap, Question
+
+from coasti.prompt import (
+    PromptResponse,
+    QuestionsDict,
+    _jinja_env_like_copier,
+    prompt_like_copier,
+)
 
 
 def _mk_fake_unsafe_prompt(answer_by_name: dict[str, str]):
@@ -209,3 +217,55 @@ def test_prompt_like_copier_accepts_data_and_skips_prompting_for_those_keys():
     }
     assert res.answers_to_remember == {"project_name": "Preseeded App"}
     assert res.secret == {"admin_password"}
+
+
+def test_jinja_env_like_copier_is_accepted_by_copier_question():
+    """The env we build must be the class copier validates `jinja_env` against.
+
+    Copier > 9.17.0 uses its own `SandboxedEnvironment` subclass, so handing
+    `Question` a plain `jinja2.sandbox.SandboxedEnvironment` raises a pydantic
+    `ValidationError` and breaks every prompt (e.g. `coasti product add`).
+    """
+
+    Question(
+        answers=AnswersMap(),
+        context={},
+        jinja_env=_jinja_env_like_copier(),
+        var_name="project_name",
+        type="str",
+        default="My App",
+    )
+
+
+def test_prompt_like_copier_renders_templated_defaults_with_custom_filters():
+    """Defaults, `when` and our added filters are rendered by that same env."""
+
+    questions: QuestionsDict = {
+        "vcs_repo": {"type": "str", "help": "Url of the product's git repo"},
+        "id": {
+            "type": "str",
+            "help": "Unique Product identifier:",
+            "default": "{{ vcs_repo | regex_replace('^.*/', '') }}",
+        },
+        "ssh_key_path": {
+            "type": "str",
+            "help": "Path to an ssh key-pair:",
+            "default": "{{ '~/.ssh/id_rsa' | expanduser }}",
+            "when": "{{ vcs_repo.startswith('git@') }}",
+        },
+    }
+
+    with MonkeyPatch.context() as mp:
+        # no explicit answers: the fake accepts whatever default was rendered
+        mp.setattr(
+            "coasti.prompt.questionary.unsafe_prompt",
+            _mk_fake_unsafe_prompt({}),
+        )
+        res = prompt_like_copier(
+            questions, data={"vcs_repo": "https://example.org/org/my_product"}
+        )
+
+    assert res.answers["id"] == "my_product"
+    # when=false, so it is hidden but keeps its (rendered) default
+    assert res.hidden == {"ssh_key_path"}
+    assert res.answers["ssh_key_path"] == str(Path("~/.ssh/id_rsa").expanduser())
