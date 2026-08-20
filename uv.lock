@@ -384,7 +384,7 @@ typed = [
 [package.metadata]
 requires-dist = [
     { name = "coasti-superset-io", specifier = ">=0.1.2" },
-    { name = "copier", specifier = ">=9.12.0" },
+    { name = "copier", specifier = ">=9.12.0,<10" },
     { name = "platformdirs", specifier = ">=4.5.1" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2" },

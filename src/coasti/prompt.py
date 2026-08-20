@@ -11,7 +11,7 @@ from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
 
 import questionary  # used by copier, we mimic
 from copier import JSONSerializable, Phase, Worker
@@ -19,14 +19,18 @@ from copier._types import MISSING
 from copier._user_data import AnswersMap, Question
 from pydantic import ValidationError
 
-try:
-    # Recent copier versions (> 9.17.0) validate `Question.jinja_env` against
-    # their own SandboxedEnvironment subclass, not the plain jinja2 one.
+if TYPE_CHECKING:
+    # Only needed to type the env below; at runtime we derive the class instead.
     from copier._jinja_ext import SandboxedEnvironment  # type: ignore[attr-defined]
-except ImportError:  # pragma: no cover - older copier
-    # The two ignores cover both cases: on old copier the import above is
-    # unresolved, on new copier this fallback narrows the type.
-    from jinja2.sandbox import SandboxedEnvironment  # type: ignore[assignment]
+else:
+    from jinja2.sandbox import SandboxedEnvironment
+
+# Copier validates `Question.jinja_env` against *its* environment class, which is a
+# moving target: plain jinja2 up to copier 9.17.0, an own SandboxedEnvironment
+# subclass (`copier._jinja_ext`) after that. Handing it the wrong one raises a
+# pydantic ValidationError and breaks every prompt, so we read the class off
+# copier's own annotation rather than an import path that may move again.
+JINJA_ENV_CLS: type[SandboxedEnvironment] = get_type_hints(Question)["jinja_env"]
 
 # -------------------------- From dict of questions -------------------------- #
 
@@ -272,6 +276,9 @@ def _jinja_env_like_copier() -> SandboxedEnvironment:
     This is a simple workaround, since copier does not expose its jinja env.
     For now, we have to add the jinja filters manually. Add as needed.
 
+    The environment class itself is `JINJA_ENV_CLS`, i.e. whichever class the
+    installed copier expects on `Question.jinja_env`.
+
     To get a list what copier ships by default:
 
     ```python
@@ -281,7 +288,7 @@ def _jinja_env_like_copier() -> SandboxedEnvironment:
     print("\n".join(sorted(env.filters.keys())))
     ```
     """
-    env = SandboxedEnvironment(autoescape=False)
+    env = JINJA_ENV_CLS(autoescape=False)
 
     def regex_replace(
         value: Any, pattern: str, replacement: str = "", count: int = 0
