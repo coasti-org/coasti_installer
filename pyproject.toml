@@ -1,6 +1,6 @@
 [project]
 name = "coasti"
-version = "0.2.3"
+version = "0.2.4"
 description = "Installer for Coasti, the Open-Source Business Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -20,7 +20,7 @@ dependencies = [
     "typer>=0.15.2",
     "PyYAML>=6.0.2",
     "ruamel.yaml>=0.18.10",
-    "copier>=9.12.0",
+    "copier>=9.12.0,<10",
     "platformdirs>=4.5.1",
 ]
 
