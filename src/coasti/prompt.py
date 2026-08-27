@@ -11,26 +11,14 @@ from collections.abc import Mapping, MutableMapping
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Generic, TypeVar, cast, get_type_hints
+from typing import Any, Generic, TypeVar, cast
 
 import questionary  # used by copier, we mimic
-from copier import JSONSerializable, Phase, Worker
-from copier._types import MISSING
+from copier._jinja_ext import SandboxedEnvironment
+from copier._main import Worker
+from copier._types import MISSING, JSONSerializable, Phase
 from copier._user_data import AnswersMap, Question
 from pydantic import ValidationError
-
-if TYPE_CHECKING:
-    # Only needed to type the env below; at runtime we derive the class instead.
-    from copier._jinja_ext import SandboxedEnvironment  # type: ignore[attr-defined]
-else:
-    from jinja2.sandbox import SandboxedEnvironment
-
-# Copier validates `Question.jinja_env` against *its* environment class, which is a
-# moving target: plain jinja2 up to copier 9.17.0, an own SandboxedEnvironment
-# subclass (`copier._jinja_ext`) after that. Handing it the wrong one raises a
-# pydantic ValidationError and breaks every prompt, so we read the class off
-# copier's own annotation rather than an import path that may move again.
-JINJA_ENV_CLS: type[SandboxedEnvironment] = get_type_hints(Question)["jinja_env"]
 
 # -------------------------- From dict of questions -------------------------- #
 
@@ -270,14 +258,11 @@ def _ask_questions_like_copier(
     return answers
 
 
-def _jinja_env_like_copier() -> SandboxedEnvironment:
+def _jinja_env_like_copier():
     """Get Jinja Environment similar to the one copier uses.
 
     This is a simple workaround, since copier does not expose its jinja env.
     For now, we have to add the jinja filters manually. Add as needed.
-
-    The environment class itself is `JINJA_ENV_CLS`, i.e. whichever class the
-    installed copier expects on `Question.jinja_env`.
 
     To get a list what copier ships by default:
 
@@ -288,7 +273,8 @@ def _jinja_env_like_copier() -> SandboxedEnvironment:
     print("\n".join(sorted(env.filters.keys())))
     ```
     """
-    env = JINJA_ENV_CLS(autoescape=False)
+
+    env = SandboxedEnvironment(autoescape=False)
 
     def regex_replace(
         value: Any, pattern: str, replacement: str = "", count: int = 0

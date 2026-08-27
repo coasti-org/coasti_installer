@@ -9,7 +9,7 @@ from coasti.logger import log, setup_logging_handler
 from .init import app as init_app
 from .product import app as product_app
 
-app = typer.Typer()
+app = typer.Typer(add_completion=False)
 
 
 @app.callback()

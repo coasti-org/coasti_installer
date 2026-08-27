@@ -13,21 +13,25 @@ TLDR:
 
 ## Unreleased
 
-## 0.2.4 - 2026-08-20
+## 0.2.4 - 2026-08-27
 
 ### Fixed
 
 - `product add` no longer crashes with a pydantic `ValidationError` on `jinja_env`
   when running against copier > 9.17.0, which validates the Jinja environment
-  against its own `SandboxedEnvironment` subclass. We now derive that class from
-  copier's own annotation, so future moves of it do not break us again
+  against its own `SandboxedEnvironment` subclass. We now use copiers own class.
 - Default product `id` no longer loses trailing characters of repo names,
   e.g. `my_product.git` became `my_produc` (`trim` strips characters, not a regex)
 
 ### Changed
 
-- Pinned `copier` to `>=9.12.0,<10`, so a new copier major cannot reach users
-  through a fresh install before we tested against it
+- Typer app no longer offers to add shell completions. This keeps the help dialog
+  shorter, which should help a bit with not overwhelming new users.
+
+### Dependencies
+
+- Pinned `copier` to `==9.17.2`. Because we import private modules, we want a bit more
+  control over updates and avoid breaking changes.
 
 ## 0.2.3 - 2026-07-14
 
