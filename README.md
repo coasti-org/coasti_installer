@@ -34,5 +34,5 @@ Create a coasti project and install products
 coasti init my_coasti_project
 cd my_coasti_project
 
-coasti product add "https://github.com/coasti-org/superset_docker"
+coasti product add "https://github.com/coasti-org/superset_docker.git"
 ```

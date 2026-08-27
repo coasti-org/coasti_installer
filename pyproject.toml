@@ -1,6 +1,6 @@
 [project]
 name = "coasti"
-version = "0.2.3"
+version = "0.2.4"
 description = "Installer for Coasti, the Open-Source Business Intelligence Framework"
 readme = "README.md"
 authors = [
@@ -20,8 +20,10 @@ dependencies = [
     "typer>=0.15.2",
     "PyYAML>=6.0.2",
     "ruamel.yaml>=0.18.10",
-    "copier>=9.12.0",
     "platformdirs>=4.5.1",
+    "copier==9.17.2",
+    # We import private modules from copier.
+    # Therefore, we trigger copier updates manually to avoid breaking changes.
 ]
 
 [dependency-groups]

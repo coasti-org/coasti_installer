@@ -73,7 +73,10 @@ PRODUCT_QUESTIONS: QuestionsDict = {
     "id": {
         "type": "str",
         "help": "Unique Product identifier:",
-        "default": "{{ vcs_repo | regex_replace('^.*/', '') | trim('\\.git$') }}",
+        # strip everything up to the last "/", then a trailing ".git"
+        "default": (
+            "{{ vcs_repo | regex_replace('^.*/', '') | regex_replace('\\.git$', '') }}"
+        ),
     },
     "dst_path": {
         "type": "str",

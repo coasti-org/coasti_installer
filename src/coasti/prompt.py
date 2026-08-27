@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Any, Generic, TypeVar, cast
 
 import questionary  # used by copier, we mimic
-from copier import JSONSerializable, Phase, Worker
-from copier._types import MISSING
+from copier._jinja_ext import SandboxedEnvironment
+from copier._main import Worker
+from copier._types import MISSING, JSONSerializable, Phase
 from copier._user_data import AnswersMap, Question
-from jinja2.sandbox import SandboxedEnvironment
 from pydantic import ValidationError
 
 # -------------------------- From dict of questions -------------------------- #
@@ -258,7 +258,7 @@ def _ask_questions_like_copier(
     return answers
 
 
-def _jinja_env_like_copier() -> SandboxedEnvironment:
+def _jinja_env_like_copier():
     """Get Jinja Environment similar to the one copier uses.
 
     This is a simple workaround, since copier does not expose its jinja env.
@@ -273,6 +273,7 @@ def _jinja_env_like_copier() -> SandboxedEnvironment:
     print("\n".join(sorted(env.filters.keys())))
     ```
     """
+
     env = SandboxedEnvironment(autoescape=False)
 
     def regex_replace(
