@@ -161,7 +161,6 @@ class Product:
         yaml_io: ProductsYamlIO,
         data: ProductData | PromptResponse[ProductData],
     ) -> None:
-
         self.yaml_io = yaml_io
         if isinstance(data, PromptResponse):
             data = data.answers
@@ -276,10 +275,31 @@ class Product:
 
         self._create_symlinks()
 
-    def update(self, vcs_ref: str | None):
+    def update(
+        self,
+        vcs_ref: str | None = None,
+        pretend: bool = False,
+        answers_file: str | None = None,
+    ):
         """
         Update this product by getting its resources via copier.
         Authentication is retrieved from disk and injected into the git commands.
+
+        Arguments
+        ---------
+        - vcs_ref:
+            - None means use previous value (taken from products.yml)
+            - strings pass directly to copier, matching cli behvaiour,
+            - where empty string means use latest tagged version (consisten with copier)
+        - pretend:
+            Run copier in pretend mode, and make no changes to products.yml
+        - answers_file:
+            Which answers file to use, relative to products (template) base dir.
+            When set to 'None' we try those files in order, using the first
+            one that exists:
+            - coasti_install_answers.yml (default for coasti products)
+            - config/install_answers.yml (old convention we used briefly)
+            - .copier-answers.yml (copiers default)
 
         Notes
         -----
@@ -290,12 +310,24 @@ class Product:
 
         if vcs_ref is None:
             vcs_ref = self.data["vcs_ref"]
-        elif vcs_ref != self.data["vcs_ref"] and self.yaml_io is not None:
-            log.debug(
-                f"Writing product to update products.yml to new vcs_ref '{vcs_ref}'"
-            )
+        if vcs_ref != self.data["vcs_ref"] and self.yaml_io is not None:
+            log.debug(f"Updating products.yml: {self.data['vcs_ref']} -> '{vcs_ref}'")
             self.data["vcs_ref"] = vcs_ref
-            self.write()
+            if not pretend:
+                self.write()
+
+        if answers_file is None:
+            for candidate in [
+                "coasti_install_answers.yml",  # default for coasti products
+                "config/install_answers.yml",  # old convention we used briefly
+                ".copier-answers.yml",  # copier's own default
+            ]:
+                if (self.dst_path / candidate).is_file():
+                    answers_file = candidate
+                    log.debug(f"Found answers file at {answers_file}")
+                    break
+        if answers_file is None:
+            raise ValueError("Could not find answers file in expected locations.")
 
         # Clone template
         with copier_git_injection(
@@ -307,12 +339,13 @@ class Product:
             )
             copier.run_update(
                 dst_path=self.dst_path,
-                answers_file="config/install_answers.yml",
+                answers_file=answers_file,
                 unsafe=True,  # trust templates, needed because they might have tasks
                 overwrite=True,  # needs to be true for copier update of subprojects
                 skip_answered=True,
                 skip_tasks=False,  # Content package can and should decide this per task
                 vcs_ref=vcs_ref,
+                pretend=pretend,
             )
 
     def _create_symlinks(self):

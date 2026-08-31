@@ -218,7 +218,21 @@ def update(
     vcs_ref: Annotated[
         str | None,
         typer.Option(
-            "--vcs-ref", help="Version control reference, e.g. git branch or commit"
+            "--vcs-ref",
+            help="Version control reference, e.g. git branch or commit. "
+            "Pass empty string to use the latest tagged version.",
+        ),
+    ] = None,
+    pretend: Annotated[
+        bool,
+        typer.Option("--pretend", help="Run but do not make any changes"),
+    ] = False,
+    answers_file: Annotated[
+        str | None,
+        typer.Option(
+            "--answers-file",
+            help="Which answers file to use, relative to products (template) base dir. "
+            "Leave empty try coastis default, then copiers default.",
         ),
     ] = None,
 ):
@@ -233,11 +247,7 @@ def update(
     pid = _product_id_from_yaml_or_prompt(yaml_io, pid)
     try:
         product = yaml_io.get_product(pid)
-
-        if vcs_ref is None:
-            vcs_ref = product.data["vcs_ref"]
-
-        product.update(vcs_ref)
+        product.update(vcs_ref, pretend, answers_file=answers_file)
     except copier.ProcessExecutionError as e:
         log.error(f"Failed to update {pid}. Check your connection and authentication.")
         log.info(e)

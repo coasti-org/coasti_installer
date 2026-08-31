@@ -17,6 +17,9 @@ class ProductData(TypedDict):
     id: str
     dst_path: str
     vcs_ref: str
+    # this vcs_ref is less detailed than the _commit copier tracks in the answers file.
+    # here, we keep the user choice (a branch, explicit commit, tag,
+    # or '' for latest version). It matches copiers _commit field only if it's a tag
     vcs_auth_type: Literal["skip", "Auth Token", "SSH Key"]
     vcs_auth_value: str
 
@@ -85,7 +88,8 @@ PRODUCT_QUESTIONS: QuestionsDict = {
     },
     "vcs_ref": {
         "type": "str",
-        "help": "Version control reference (git branch, tag or commit)",
-        "default": "main",
+        "help": "Version control reference (git branch, tag or commit, "
+        "leave empty for latest)",
+        "default": "",
     },
 }
