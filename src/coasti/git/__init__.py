@@ -1,13 +1,18 @@
 import shlex
 import sys
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from importlib import resources
 from pathlib import Path
 from typing import Any
 
 import copier._vcs as copier_vcs
-from plumbum.commands.processes import ProcessExecutionError, ProcessTimedOut
+import typer
+from plumbum.commands.processes import (
+    CommandNotFound,
+    ProcessExecutionError,
+    ProcessTimedOut,
+)
 
 from coasti.logger import log
 
@@ -18,7 +23,7 @@ def copier_git_injection(
     https_token: str | None = None,
     ssh_key_path: str | Path | None = None,
     ssh_known_hosts_path: str | Path | None = None,
-) -> Iterator[None]:
+) -> Generator[None]:
     """
     Inject auth settings into all git commands executed by Copier.
 
@@ -116,3 +121,54 @@ def can_access_git_repo(repo_url: str, *, timeout_seconds: float = 15) -> bool:
         code = e.retcode
         log.debug(f"Git repo access check failed: {code=} {stdout=} {stderr=}")
         return False
+
+
+def get_git_or_exit():
+    """
+    Get the git executable, or exit the coasti app.
+
+    Without git, most commands around copier wont work.
+    """
+
+    try:
+        git_command = copier_vcs.get_git()
+    except CommandNotFound:
+        typer.echo(
+            "Git is required for most coasti commands but was not found on the PATH. "
+            "Please install Git and try again.",
+            err=True,
+        )
+        raise typer.Exit(code=1) from None
+
+    required_config = ("init.defaultBranch", "user.email", "user.name")
+    missing_config: list[str] = []
+
+    for config_name in required_config:
+        try:
+            _code, stdout, _stderr = git_command[
+                "config", "--global", "--get", config_name
+            ].run()
+        except ProcessExecutionError:
+            missing_config.append(config_name)
+            continue
+
+        config_value = stdout.strip()
+        if not config_value:
+            missing_config.append(config_name)
+
+    if missing_config:
+        required_commands = {
+            "init.defaultBranch": "  git config --global init.defaultBranch main",
+            "user.email": '  git config --global user.email "you@example.com"',
+            "user.name": '  git config --global user.name "Your Name"',
+        }
+        log.warning(
+            "Coasti requires git. We found the executable, but your configuration is "
+            "missing some details. Add them to avoid issues:\n"
+            + "\n".join(
+                required_commands[config_name] for config_name in missing_config
+            )
+            + "\n",
+        )
+
+    return git_command

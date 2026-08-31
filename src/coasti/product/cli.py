@@ -13,7 +13,7 @@ from rich.table import Table
 from ruamel.yaml import YAML
 
 from coasti.cli_context import ensure_coasti_namespace
-from coasti.git import can_access_git_repo, copier_git_injection
+from coasti.git import can_access_git_repo, copier_git_injection, get_git_or_exit
 from coasti.logger import log
 from coasti.prompt import (
     prompt_like_copier,
@@ -108,6 +108,7 @@ def add(
 ):
     """Add a product to coasti"""
 
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
 
     # Parse skip-prompt answers and internal variables for answers_file
@@ -189,6 +190,8 @@ def install(
 
     Uses copier, git and details from config/products.yml
     """
+
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
 
     yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
@@ -241,6 +244,8 @@ def update(
 
     Uses copier, git and details from config/products.yml
     """
+
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
 
     yaml_io = ProductsYamlIO(coasti_ctx.base_dir)

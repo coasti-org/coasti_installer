@@ -19,6 +19,7 @@ import copier
 import typer
 from platformdirs import user_cache_dir
 
+from coasti.git import get_git_or_exit
 from coasti.prompt import prompt_single
 
 from .logger import log
@@ -62,6 +63,9 @@ def init(
     ] = None,
 ):
     """Initialize a coasti workspace"""
+
+    # coasti init uses copier, which needs git
+    get_git_or_exit()
 
     # Parse skip-prompt answers and internal variables for answers_file
     extra_data: dict = {}
