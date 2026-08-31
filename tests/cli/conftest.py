@@ -77,6 +77,10 @@ def mock_product_repo():
 
     We inlcude the folder structure under /templates but still need to convert
     it into a proper git repo with tags, so that copier can install from it.
+
+    This is only a local, on-disk repo. To check authentication flows, consider
+    using the repo fixture we have in the integration tests, which offers a proper
+    git server.
     """
 
     repo_root = Path(__file__).resolve().parents[2]

@@ -166,9 +166,33 @@ class Product:
             data = data.answers
         self.data = deepcopy(data)
 
-        # make sure helper questions dont persist
+        # make sure helper questions dont persist.
+        # we store vcs_auth_value instead, and have properties.
         self.data.pop("vcs_auth_sshkeypath", None)
         self.data.pop("vcs_auth_token", None)
+
+    @classmethod
+    def draft(cls, yaml_io: ProductsYamlIO) -> Product:
+        """
+        Create an in-memory product that can be completed before writing.
+
+        When using this, product.data contains non-validated values.
+        It is your responsibility to replace them before writing!
+        """
+
+        draft_data: ProductData = {
+            "vcs_repo": "",
+            "id": "",
+            "dst_path": "",
+            "vcs_ref": "",
+            "vcs_auth_type": "skip",
+            "vcs_auth_value": AUTH_SKIP_SENTINEL,
+        }
+
+        return cls(
+            yaml_io=yaml_io,
+            data=draft_data,
+        )
 
     @property
     def id(self):

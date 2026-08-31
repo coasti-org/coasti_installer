@@ -38,8 +38,7 @@ class ProductData(TypedDict):
 AUTH_FILE_SENTINEL = "__file__"  # get secret from file
 AUTH_SKIP_SENTINEL = "__skip__"  # when no auth used
 
-PRODUCT_QUESTIONS: QuestionsDict = {
-    "vcs_repo": {"type": "str", "help": "Url of the product's git repo"},
+AUTH_QUESTIONS: QuestionsDict = {
     # ask for authentication first, to check connection
     "vcs_auth_type": {
         "type": "str",
@@ -72,6 +71,10 @@ PRODUCT_QUESTIONS: QuestionsDict = {
         "secret": True,
         "when": False,
     },
+}
+
+PRODUCT_QUESTIONS: QuestionsDict = {
+    "vcs_repo": {"type": "str", "help": "Url of the product's git repo"},
     # Fixme: id should come from a custom coasti.yml (or copier.yml?)
     "id": {
         "type": "str",
