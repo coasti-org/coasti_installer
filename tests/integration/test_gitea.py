@@ -94,14 +94,14 @@ def test_private_readme_repository_is_not_accessible_with_wrong_ssh_key(
 
 
 @pytest.mark.integration
-def test_mock_product_repository_exports_both_version_tags(
-    mock_product_repository,
+def test_private_mock_product_repository_exports_both_version_tags(
+    private_mock_product_repository,
 ):
     """Verify that the mock product repository publishes both Copier versions."""
 
-    authenticated_url = mock_product_repository.http_url.replace(
+    authenticated_url = private_mock_product_repository.http_url.replace(
         "http://",
-        f"http://coasti-test:{mock_product_repository.http_token}@",
+        f"http://coasti-test:{private_mock_product_repository.http_token}@",
     )
     result = subprocess.run(
         ["git", "ls-remote", "--tags", authenticated_url],

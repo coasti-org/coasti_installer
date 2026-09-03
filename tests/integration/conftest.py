@@ -7,13 +7,17 @@ import json
 import shutil
 import subprocess
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
 from testcontainers.core.container import DockerContainer, ExecConfig
 from testcontainers.core.wait_strategies import HttpWaitStrategy
+
+import coasti.product.cli as product_cli
+
+from .product_test_helpers import ssh_environment
 
 GITEA_IMAGE = "gitea/gitea:1.24.6"
 GITEA_USERNAME = "coasti-test"
@@ -31,9 +35,14 @@ class GiteaRepository:
     ssh_private_key: Path
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def gitea_container() -> Iterator[DockerContainer]:
-    """Start an isolated Gitea instance for the integration test session."""
+    """Start an isolated Gitea instance for one integration test module.
+
+    Module scope keeps the Gitea SSH service isolated between test modules,
+    preventing authentication experiments in one module from affecting the
+    repositories and SSH connections exercised by another module.
+    """
 
     try:
         container = (
@@ -53,7 +62,7 @@ def gitea_container() -> Iterator[DockerContainer]:
         container.stop()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def readme_only_repository(
     gitea_container: DockerContainer,
     tmp_path_factory: pytest.TempPathFactory,
@@ -79,8 +88,8 @@ def readme_only_repository(
     return GiteaRepository(http_url, ssh_url, token, private_key)
 
 
-@pytest.fixture(scope="session")
-def mock_product_repository(
+@pytest.fixture(scope="module")
+def private_mock_product_repository(
     gitea_container: DockerContainer,
     readme_only_repository: GiteaRepository,
     tmp_path_factory: pytest.TempPathFactory,
@@ -92,18 +101,87 @@ def mock_product_repository(
     additions and removals.
     """
 
-    repository = _gitea_api_request(
+    return _create_mock_product_repository(
         gitea_container,
+        readme_only_repository,
+        tmp_path_factory,
+        repository_name="mock-product-fixture",
+        private=True,
+    )
+
+
+@pytest.fixture(scope="module")
+def public_mock_product_repository(
+    gitea_container: DockerContainer,
+    readme_only_repository: GiteaRepository,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> GiteaRepository:
+    """Publish the same tagged mock product template as a public Gitea repository."""
+
+    return _create_mock_product_repository(
+        gitea_container,
+        readme_only_repository,
+        tmp_path_factory,
+        repository_name="public-mock-product-fixture",
+        private=False,
+    )
+
+
+@pytest.fixture
+def ssh_authentication(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> Callable[[GiteaRepository], dict[str, str]]:
+    """Provide SSH setup for tests that access an ephemeral Gitea repository.
+
+    The returned factory creates a temporary ``known_hosts`` file by scanning
+    the repository's Gitea host and returns the environment variables needed
+    to make that file the active SSH configuration. It also patches (and later
+    reverts) our copier git injection so the repository's credentials use the
+    same known-hosts file.
+
+    This is only needed because, without known hosts, git asks for confirmation
+    on first connect.
+    """
+
+    def configure(repository: GiteaRepository) -> dict[str, str]:
+        environment, known_hosts_path = ssh_environment(repository, tmp_path)
+        original_git_injection = product_cli.copier_git_injection
+
+        def git_injection(**kwargs):
+            return original_git_injection(
+                **kwargs,
+                ssh_known_hosts_path=known_hosts_path,
+            )
+
+        monkeypatch.setattr(product_cli, "copier_git_injection", git_injection)
+        return environment
+
+    return configure
+
+
+def _create_mock_product_repository(
+    container: DockerContainer,
+    authentication_repository: GiteaRepository,
+    tmp_path_factory: pytest.TempPathFactory,
+    *,
+    repository_name: str,
+    private: bool,
+) -> GiteaRepository:
+    """Create, tag, and publish one mock product repository with chosen visibility."""
+
+    repository = _gitea_api_request(
+        container,
         "/api/v1/user/repos",
         {
-            "name": "mock-product-fixture",
+            "name": repository_name,
             "description": "Mock product template for Coasti integration tests",
-            "private": True,
+            "private": private,
             "default_branch": "main",
         },
     )
-    http_url, ssh_url = _repository_urls(gitea_container, str(repository["name"]))
-    local_repository = tmp_path_factory.mktemp("mock-product-repository")
+    http_url, ssh_url = _repository_urls(container, str(repository["name"]))
+    local_repository = tmp_path_factory.mktemp(repository_name)
     shutil.copytree(
         Path(__file__).parents[2] / "templates" / "mock_product",
         local_repository,
@@ -152,7 +230,8 @@ def mock_product_repository(
         check=True,
     )
     authenticated_url = http_url.replace(
-        "http://", f"http://{GITEA_USERNAME}:{readme_only_repository.http_token}@"
+        "http://",
+        f"http://{GITEA_USERNAME}:{authentication_repository.http_token}@",
     )
     subprocess.run(
         ["git", "push", authenticated_url, "main", "v1.0.0", "v2.0.0"],
@@ -164,8 +243,8 @@ def mock_product_repository(
     return GiteaRepository(
         http_url,
         ssh_url,
-        readme_only_repository.http_token,
-        readme_only_repository.ssh_private_key,
+        authentication_repository.http_token,
+        authentication_repository.ssh_private_key,
     )
 
 
