@@ -6,7 +6,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from coasti.git import can_access_git_repo, copier_git_injection
+from coasti.git import check_access_to_git_repo, copier_git_injection
 
 
 @pytest.mark.integration
@@ -19,7 +19,7 @@ def test_private_readme_repository_is_accessible_with_http_token(
         "http://",
         f"http://coasti-test:{readme_only_repository.http_token}@",
     )
-    assert can_access_git_repo(authenticated_url)
+    assert check_access_to_git_repo(authenticated_url)
 
 
 @pytest.mark.integration
@@ -39,7 +39,7 @@ def test_private_readme_repository_is_accessible_with_ssh_key(
         ssh_key_path=readme_only_repository.ssh_private_key,
         ssh_known_hosts_path=known_hosts,
     ):
-        assert can_access_git_repo(readme_only_repository.ssh_url)
+        assert check_access_to_git_repo(readme_only_repository.ssh_url)
 
 
 @pytest.mark.integration
@@ -52,7 +52,7 @@ def test_private_readme_repository_is_not_accessible_with_wrong_http_token(
         "http://",
         "http://coasti-test:wrong-token@",
     )
-    assert not can_access_git_repo(wrong_credentials_url, timeout_seconds=5)
+    assert not check_access_to_git_repo(wrong_credentials_url, timeout_seconds=5)
 
 
 @pytest.mark.integration
@@ -87,7 +87,7 @@ def test_private_readme_repository_is_not_accessible_with_wrong_ssh_key(
         ssh_key_path=wrong_private_key,
         ssh_known_hosts_path=known_hosts,
     ):
-        assert not can_access_git_repo(
+        assert not check_access_to_git_repo(
             readme_only_repository.ssh_url,
             timeout_seconds=5,
         )

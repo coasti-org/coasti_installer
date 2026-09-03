@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 import coasti.cli as cli
 import coasti.product.cli as product_cli
+from coasti.git import GitProbeResult
 
 
 def add_product(
@@ -74,18 +75,18 @@ def force_authentication(monkeypatch: MonkeyPatch) -> None:
     verifies the actual authentication mechanism against Gitea.
     """
 
-    from coasti.git import can_access_git_repo as real_can_access_git_repo
+    from coasti.git import check_access_to_git_repo as real_check_access_to_git_repo
 
     unauthenticated_urls: set[str] = set()
 
-    def can_access_with_authentication(url: str) -> bool:
+    def check_access_with_authentication(url: str) -> GitProbeResult:
         if url not in unauthenticated_urls:
             unauthenticated_urls.add(url)
-            return False
-        return real_can_access_git_repo(url)
+            return GitProbeResult(is_accessible=False)
+        return real_check_access_to_git_repo(url)
 
     monkeypatch.setattr(
-        product_cli, "can_access_git_repo", can_access_with_authentication
+        product_cli, "check_access_to_git_repo", check_access_with_authentication
     )
 
 

@@ -1,7 +1,9 @@
 import shlex
 import sys
-from collections.abc import Generator
+from collections.abc import Collection, Generator
 from contextlib import contextmanager
+from dataclasses import dataclass
+from enum import StrEnum
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -94,7 +96,77 @@ def copier_git_injection(
         copier_vcs.get_git = original_get_git
 
 
-def can_access_git_repo(repo_url: str, *, timeout_seconds: float = 15) -> bool:
+class GitAccessFailure(StrEnum):
+    """Reason a Git repository access probe failed."""
+
+    AUTHENTICATION = "authentication"
+    HOST_VERIFICATION = "host_verification"
+    TLS_CERTIFICATE = "tls_certificate"
+    NOT_FOUND = "not_found"
+    TIMEOUT = "timeout"
+    NETWORK = "network"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True)
+class GitProbeResult:
+    """Outcome of a Git repository access probe.
+
+    Truthiness intentionally mirrors the former boolean return value so callers
+    can migrate to inspecting failure details without changing control flow.
+    """
+
+    is_accessible: bool
+    failure: GitAccessFailure | None = None
+    detail: str | None = None
+
+    def __bool__(self) -> bool:
+        return self.is_accessible
+
+    def exit_for_failures_except(
+        self,
+        failures_not_to_raise: Collection[GitAccessFailure] = frozenset(),
+    ) -> None:
+        """Log and exit for a failure unless it is explicitly exempted."""
+
+        if self.failure is None or self.failure in failures_not_to_raise:
+            return
+
+        messages: dict[GitAccessFailure, str] = {
+            GitAccessFailure.AUTHENTICATION: (
+                "Git authentication failed. Check your credentials and try again."
+            ),
+            GitAccessFailure.HOST_VERIFICATION: (
+                "Git rejected the SSH host key. Add the host to your SSH known_hosts "
+                "file and try again."
+            ),
+            GitAccessFailure.TLS_CERTIFICATE: (
+                "Git rejected the server certificate. Check your TLS or certificate "
+                "configuration and try again."
+            ),
+            GitAccessFailure.TIMEOUT: (
+                "Git timed out while accessing the repository. Try again later."
+            ),
+            GitAccessFailure.NETWORK: (
+                "Git could not reach the repository. Check the URL and network."
+            ),
+            GitAccessFailure.NOT_FOUND: (
+                "Git could not find the repository. Check the repository URL."
+            ),
+            GitAccessFailure.UNKNOWN: (
+                "Git could not access the repository. Check the URL and Git "
+                "configuration."
+            ),
+        }
+        log.error(messages[self.failure])
+        raise typer.Exit(code=1)
+
+
+def check_access_to_git_repo(
+    repo_url: str,
+    *,
+    timeout_seconds: float = 15,
+) -> GitProbeResult:
     """
     Probe if we can reach a repo using Copier's git command.
 
@@ -109,18 +181,51 @@ def can_access_git_repo(repo_url: str, *, timeout_seconds: float = 15) -> bool:
     cmd = copier_vcs.get_git()["ls-remote", str(repo_url), "-q"]
     try:
         _code, _stdout, _stderr = cmd.run(timeout=timeout_seconds)
-        return True
+        return GitProbeResult(is_accessible=True)
     except ProcessTimedOut:
         log.debug(
             f"Git repo access check timed out after {timeout_seconds}: {repo_url}"
         )
-        return False
+        return GitProbeResult(
+            is_accessible=False,
+            failure=GitAccessFailure.TIMEOUT,
+            detail=f"Timed out after {timeout_seconds} seconds",
+        )
     except ProcessExecutionError as e:
         stderr = (e.stderr or "").strip().replace("\n", " ")
         stdout = (e.stdout or "").strip().replace("\n", " ")
         code = e.retcode
         log.debug(f"Git repo access check failed: {code=} {stdout=} {stderr=}")
-        return False
+        detail = stderr or stdout
+
+        def _classify_git_failure(_detail: str) -> GitAccessFailure:
+            detail = _detail.lower()
+            if "host key verification failed" in detail or (
+                "authenticity of host" in detail
+            ):
+                return GitAccessFailure.HOST_VERIFICATION
+            if "ssl certificate problem" in detail:
+                return GitAccessFailure.TLS_CERTIFICATE
+            if "repository not found" in detail:
+                return GitAccessFailure.NOT_FOUND
+            if "authentication failed" in detail or "permission denied" in (detail):
+                return GitAccessFailure.AUTHENTICATION
+            if any(
+                message in detail
+                for message in (
+                    "could not resolve host",
+                    "connection refused",
+                    "network is unreachable",
+                )
+            ):
+                return GitAccessFailure.NETWORK
+            return GitAccessFailure.UNKNOWN
+
+        return GitProbeResult(
+            is_accessible=False,
+            failure=_classify_git_failure(detail),
+            detail=detail or None,
+        )
 
 
 def get_git_or_exit():

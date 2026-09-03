@@ -12,7 +12,12 @@ from rich.table import Table
 from ruamel.yaml import YAML
 
 from coasti.cli_context import ensure_coasti_namespace
-from coasti.git import can_access_git_repo, copier_git_injection, get_git_or_exit
+from coasti.git import (
+    GitAccessFailure,
+    check_access_to_git_repo,
+    copier_git_injection,
+    get_git_or_exit,
+)
 from coasti.logger import log
 from coasti.prompt import (
     prompt_like_copier,
@@ -135,11 +140,14 @@ def add(
         if repository_url is None:
             repository_url = prompt_single("Url of the product's git repo:", type=str)
 
-        if can_access_git_repo(repository_url):
+        probe = check_access_to_git_repo(repository_url)
+        if probe.is_accessible:
             product.data["vcs_repo"] = repository_url
             product.data["vcs_auth_type"] = "skip"
             product.data["vcs_auth_value"] = AUTH_SKIP_SENTINEL
             break
+
+        probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
 
         # Ask authentication questions
         log.info("Failed to access repo without authentication.")
@@ -166,8 +174,11 @@ def add(
             https_token=product.vcs_auth_token,
             ssh_key_path=product.vcs_auth_sshkeypath,
         ):
-            if can_access_git_repo(repository_url):
+            probe = check_access_to_git_repo(repository_url)
+            if probe.is_accessible:
                 break
+
+            probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
 
         log.error(
             "Could not access the repository with the provided authentication. "

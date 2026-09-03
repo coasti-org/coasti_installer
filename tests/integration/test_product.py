@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 import coasti.cli as cli
 import coasti.product.cli as product_cli
+from coasti.git import GitProbeResult
 
 from .product_test_helpers import add_product, force_authentication, install_product
 
@@ -293,10 +294,12 @@ class TestProductAddDialog:
             return SimpleNamespace(answers=data)
 
         monkeypatch.setattr(product_cli, "prompt_like_copier", prompt)
-        access_results = iter([False, True])
+        access_results = iter(
+            [GitProbeResult(is_accessible=False), GitProbeResult(is_accessible=True)]
+        )
         monkeypatch.setattr(
             product_cli,
-            "can_access_git_repo",
+            "check_access_to_git_repo",
             lambda _repository_url: next(access_results),
         )
 
