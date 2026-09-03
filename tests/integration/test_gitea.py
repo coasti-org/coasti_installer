@@ -134,6 +134,7 @@ def _create_known_hosts_file(repository_url: str, directory: Path) -> Path:
         check=True,
         capture_output=True,
         text=True,
+        timeout=10,
     )
     known_hosts.write_text(scan_result.stdout)
     return known_hosts

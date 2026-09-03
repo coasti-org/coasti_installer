@@ -49,6 +49,33 @@ jobs:
         run: |
           uv run mypy --show-error-codes --check-untyped-defs --config-file ./pyproject.toml ./
 
+  integration:
+    name: Run integration tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Install uv and set the Python version
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          uv sync --group test
+      - name: Setup Git
+        run: |
+          git config --global user.email "you@example.com"
+          git config --global user.name "Your Name"
+          git config --global init.defaultBranch main
+      - name: Run integration tests
+        run: |
+          uv run pytest -m integration tests/integration -v
+
   test:
     name: Run tests
     runs-on: ${{ matrix.os }}
@@ -77,4 +104,4 @@ jobs:
           git config --global init.defaultBranch main
       - name: Test with coverage
         run: |
-          uv run pytest --cov=coasti --cov-report xml:coverage.xml --junitxml=junit.xml -o junit_family=legacy -v
+          uv run pytest -m "not integration" --cov=coasti --cov-report xml:coverage.xml --junitxml=junit.xml -o junit_family=legacy -v

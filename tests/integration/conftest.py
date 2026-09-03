@@ -35,15 +35,14 @@ class GiteaRepository:
 def gitea_container() -> Iterator[DockerContainer]:
     """Start an isolated Gitea instance for the integration test session."""
 
-    container = (
-        DockerContainer(GITEA_IMAGE)
-        .with_exposed_ports(3000, 22)
-        .with_env("GITEA__security__INSTALL_LOCK", "true")
-        .with_env("GITEA__server__ROOT_URL", "http://localhost:3000/")
-        .waiting_for(HttpWaitStrategy(3000, "/api/healthz"))
-    )
-
     try:
+        container = (
+            DockerContainer(GITEA_IMAGE)
+            .with_exposed_ports(3000, 22)
+            .with_env("GITEA__security__INSTALL_LOCK", "true")
+            .with_env("GITEA__server__ROOT_URL", "http://localhost:3000/")
+            .waiting_for(HttpWaitStrategy(3000, "/api/healthz"))
+        )
         container.start()
     except Exception as error:
         pytest.skip(f"Docker/Gitea is unavailable: {error}")
