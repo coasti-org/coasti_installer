@@ -13,6 +13,12 @@ TLDR:
 
 ## Unreleased
 
+### Dev
+
+- Added Integration Tests: we now have a docker setup in pytest that provies a git server.
+  This allows us to test product installations from private repos and to verify that auth
+  methods and dialog flows work.
+
 ## 0.2.4 - 2026-08-27
 
 ### Fixed
