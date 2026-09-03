@@ -5,16 +5,18 @@ Gitea fixtures start a pinned Gitea container, create a private README-only
 repository, and publish the mock product template as another repository. The
 tests verify real access using both an HTTP token and an SSH key.
 
-Docker must be running. From the repository root, run:
+Docker must be running.
 
-```text
-uv run pytest -m integration tests/integration
+To run integration tests alone, from the repository root, run:
+
+```bash
+uv run pytest --integration -m integration tests/integration
 ```
 
 Run the complete test suite with:
 
-```text
-uv run pytest
+```bash
+uv run pytest --integration
 ```
 
 The container and its repositories are created for the test session and removed

@@ -74,7 +74,7 @@ jobs:
           git config --global init.defaultBranch main
       - name: Run integration tests
         run: |
-          uv run pytest -m integration tests/integration -v
+          uv run pytest --integration -m integration tests/integration -v
 
   test:
     name: Run tests
@@ -104,4 +104,4 @@ jobs:
           git config --global init.defaultBranch main
       - name: Test with coverage
         run: |
-          uv run pytest -m "not integration" --cov=coasti --cov-report xml:coverage.xml --junitxml=junit.xml -o junit_family=legacy -v
+          uv run pytest --cov=coasti --cov-report xml:coverage.xml --junitxml=junit.xml -o junit_family=legacy -v
