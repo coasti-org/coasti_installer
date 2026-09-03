@@ -1,3 +1,4 @@
+import shlex
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -62,11 +63,13 @@ def copier_git_injection(
         elif ssh_key_path:
             if Path(ssh_key_path).is_file():
                 extra_env["GIT_SSH_COMMAND"] = (
-                    f"ssh -i {ssh_key_path} -o IdentitiesOnly=yes"
+                    f"ssh -i {shlex.quote(Path(ssh_key_path).as_posix())} "
+                    "-o IdentitiesOnly=yes"
                 )
                 if ssh_known_hosts_path is not None:
                     extra_env["GIT_SSH_COMMAND"] += (
-                        f" -o UserKnownHostsFile={ssh_known_hosts_path}"
+                        " -o UserKnownHostsFile="
+                        f"{shlex.quote(Path(ssh_known_hosts_path).as_posix())}"
                         " -o StrictHostKeyChecking=yes"
                     )
             else:
