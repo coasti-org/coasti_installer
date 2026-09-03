@@ -86,7 +86,12 @@ def mock_product_repository(
     readme_only_repository: GiteaRepository,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> GiteaRepository:
-    """Publish the mock product template as a repository in Gitea."""
+    """Publish two tagged versions of the mock product template in Gitea.
+
+    Version ``v1.0.0`` contains ``v1_test_file.txt``. Version ``v2.0.0`` removes
+    that file and adds ``v2_test_file.txt`` so update tests can verify file
+    additions and removals.
+    """
 
     repository = _gitea_api_request(
         gitea_container,
@@ -116,6 +121,9 @@ def mock_product_repository(
         cwd=local_repository,
         check=True,
     )
+    (local_repository / "v1_test_file.txt").write_text(
+        "This file exists only in version 1.\n"
+    )
     subprocess.run(["git", "add", "."], cwd=local_repository, check=True)
     subprocess.run(
         ["git", "commit", "-m", "Initial mock product"],
@@ -123,11 +131,32 @@ def mock_product_repository(
         check=True,
         capture_output=True,
     )
+    subprocess.run(
+        ["git", "tag", "v1.0.0"],
+        cwd=local_repository,
+        check=True,
+    )
+    (local_repository / "v1_test_file.txt").unlink()
+    (local_repository / "v2_test_file.txt").write_text(
+        "This file exists only in version 2.\n"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=local_repository, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Add version 2 test file"],
+        cwd=local_repository,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "tag", "v2.0.0"],
+        cwd=local_repository,
+        check=True,
+    )
     authenticated_url = http_url.replace(
         "http://", f"http://{GITEA_USERNAME}:{readme_only_repository.http_token}@"
     )
     subprocess.run(
-        ["git", "push", authenticated_url, "main"],
+        ["git", "push", authenticated_url, "main", "v1.0.0", "v2.0.0"],
         cwd=local_repository,
         check=True,
         capture_output=True,
