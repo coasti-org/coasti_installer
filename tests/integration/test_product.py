@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 from typer.testing import CliRunner
 
 import coasti.cli as cli
+import coasti.product.cli as product_cli
 
 from .product_test_helpers import add_product, force_authentication, install_product
 
@@ -28,7 +30,7 @@ class TestPublicProduct:
             vcs_auth_type="skip",
         )
 
-        assert result.exit_code == 0, result.exception
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
         products_file = coasti_instance_dir / "config" / "products.yml"
         yaml_data = yaml.safe_load(products_file.read_text())
         product = yaml_data["products"][0]
@@ -98,7 +100,6 @@ class TestPublicProduct:
         assert (product_directory / "data").is_dir()
         assert (product_directory / "README.md").is_file()
         assert (product_directory / "config" / ".env").is_file()
-
 
 
 class TestPrivateProduct:
@@ -213,3 +214,126 @@ class TestPrivateProduct:
             coasti_instance_dir / "config" / "secrets" / f"vcs_auth_{product_id}"
         )
         assert secret_file.read_text() == expected_secret
+
+
+class TestProductAddDialog:
+    """Verify the product-add dialog follows each authentication branch."""
+
+    @pytest.mark.integration
+    def test_public_repository_skips_authentication_questions(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+        monkeypatch,
+    ):
+        prompted_questions = []
+
+        def prompt(questions, data):
+            prompted_questions.append(questions)
+            # SimpleNamespace is just an object, that holds the kwargs as attributes.
+            return SimpleNamespace(answers=data)
+
+        monkeypatch.setattr(product_cli, "prompt_like_copier", prompt)
+        result = cli_runner.invoke(
+            cli.app,
+            [
+                "--quiet",
+                "product",
+                "add",
+                "--data",
+                json.dumps(
+                    {
+                        "id": "mock_public_dialog",
+                        "dst_path": "products/mock_public_dialog",
+                        "vcs_repo": public_mock_product_repository.http_url,
+                        "vcs_ref": "main",
+                    }
+                ),
+            ],
+            env={"COASTI_BASE_DIR": str(coasti_instance_dir)},
+        )
+
+        assert result.exit_code == 0, result.exception
+        assert prompted_questions == [product_cli.PRODUCT_QUESTIONS]
+        product = yaml.safe_load(
+            (coasti_instance_dir / "config" / "products.yml").read_text()
+        )["products"][0]
+        assert product["vcs_auth_type"] == "skip"
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("secret_kind", ["Auth Token", "SSH Key"])
+    def test_private_repository_follows_selected_authentication_branch(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        private_mock_product_repository,
+        ssh_authentication,
+        secret_kind: str,
+        monkeypatch,
+    ):
+        prompted_questions = []
+        repository_url = private_mock_product_repository.http_url
+        credential = private_mock_product_repository.http_token
+        environment = {}
+        if secret_kind == "SSH Key":
+            environment = ssh_authentication(private_mock_product_repository)
+            repository_url = private_mock_product_repository.ssh_url
+            credential = str(private_mock_product_repository.ssh_private_key)
+
+        def prompt(questions, data):
+            prompted_questions.append(questions)
+            if questions is product_cli.AUTH_QUESTIONS:
+                return SimpleNamespace(
+                    answers={
+                        "vcs_auth_type": secret_kind,
+                        "vcs_auth_value": credential,
+                    }
+                )
+            return SimpleNamespace(answers=data)
+
+        monkeypatch.setattr(product_cli, "prompt_like_copier", prompt)
+        access_results = iter([False, True])
+        monkeypatch.setattr(
+            product_cli,
+            "can_access_git_repo",
+            lambda _repository_url: next(access_results),
+        )
+
+        result = cli_runner.invoke(
+            cli.app,
+            [
+                "--quiet",
+                "product",
+                "add",
+                repository_url,
+                "--data",
+                json.dumps(
+                    {
+                        "id": (
+                            "mock_private_dialog_"
+                            f"{secret_kind.lower().replace(' ', '_')}"
+                        ),
+                        "dst_path": "products/mock_private_dialog",
+                        "vcs_ref": "main",
+                    }
+                ),
+            ],
+            input="",
+            env={
+                **environment,
+                "COASTI_BASE_DIR": str(coasti_instance_dir),
+            },
+        )
+
+        assert result.exit_code == 0, result.exception
+        assert prompted_questions == [
+            product_cli.AUTH_QUESTIONS,
+            product_cli.PRODUCT_QUESTIONS,
+        ]
+        product_id = f"mock_private_dialog_{secret_kind.lower().replace(' ', '_')}"
+        products = yaml.safe_load(
+            (coasti_instance_dir / "config" / "products.yml").read_text()
+        )["products"]
+        product = next(product for product in products if product["id"] == product_id)
+        assert product["vcs_auth_type"] == secret_kind

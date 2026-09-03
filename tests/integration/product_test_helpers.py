@@ -63,6 +63,10 @@ def install_product(
 def force_authentication(monkeypatch: MonkeyPatch) -> None:
     """Force the initial unauthenticated probe to fail.
 
+    We need this because, even when we set the auth method to skip, we might
+    have access to the public repo. git autodiscovers and uses credentials if
+    it finds in the os setup, via ssh agents etc.
+
     ``product add`` first tries to access a repository without credentials. If
     that succeeds, it records ``skip`` and never exercises the supplied token or
     SSH key. This wrapper rejects the first probe for each URL and delegates all
