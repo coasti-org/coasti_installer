@@ -16,6 +16,7 @@ def copier_git_injection(
     *,
     https_token: str | None = None,
     ssh_key_path: str | Path | None = None,
+    ssh_known_hosts_path: str | Path | None = None,
 ) -> Iterator[None]:
     """
     Inject auth settings into all git commands executed by Copier.
@@ -63,6 +64,11 @@ def copier_git_injection(
                 extra_env["GIT_SSH_COMMAND"] = (
                     f"ssh -i {ssh_key_path} -o IdentitiesOnly=yes"
                 )
+                if ssh_known_hosts_path is not None:
+                    extra_env["GIT_SSH_COMMAND"] += (
+                        f" -o UserKnownHostsFile={ssh_known_hosts_path}"
+                        " -o StrictHostKeyChecking=yes"
+                    )
             else:
                 # avoid Prompt injection, skip ssh overwrite
                 log.warning(f"'{ssh_key_path}' is not a valid path for an ssh key.")

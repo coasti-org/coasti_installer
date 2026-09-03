@@ -47,7 +47,7 @@ def coasti_instance_dir(coasti_template_bundle):
     """
     A working instance of coasti with local version control.
     """
-    from coasti import cli
+    import coasti.cli as cli
 
     cli_runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmp_path:

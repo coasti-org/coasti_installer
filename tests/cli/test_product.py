@@ -5,7 +5,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from coasti import cli
+import coasti.cli as cli
 
 
 class TestProductFlow:
@@ -140,7 +140,6 @@ class TestProductFlow:
         cli_runner: CliRunner,
         coasti_instance_dir: Path,
     ):
-
         command = ["product", "install", "mock_skip"]
         result = cli_runner.invoke(
             app=cli.app, args=command, env={"COASTI_BASE_DIR": str(coasti_instance_dir)}

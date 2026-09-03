@@ -3,7 +3,7 @@ from unittest import mock
 
 import pytest
 
-from coasti import cli
+import coasti.cli as cli
 
 
 @pytest.mark.parametrize(

@@ -5,7 +5,7 @@ import pytest
 import yaml
 from typer.testing import CliRunner
 
-from coasti import cli
+import coasti.cli as cli
 
 
 @pytest.mark.parametrize(
