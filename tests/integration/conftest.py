@@ -16,6 +16,7 @@ from testcontainers.core.container import DockerContainer, ExecConfig
 from testcontainers.core.wait_strategies import HttpWaitStrategy
 
 import coasti.product.cli as product_cli
+import coasti.product.product as product_backend
 
 from .product_test_helpers import ssh_environment
 
@@ -154,7 +155,10 @@ def ssh_authentication(
                 ssh_known_hosts_path=known_hosts_path,
             )
 
+        # Product commands use separate bindings for repository probes and for
+        # install/update operations, so both must use the temporary known_hosts file.
         monkeypatch.setattr(product_cli, "copier_git_injection", git_injection)
+        monkeypatch.setattr(product_backend, "copier_git_injection", git_injection)
         return environment
 
     return configure
@@ -170,6 +174,7 @@ def _create_mock_product_repository(
 ) -> GiteaRepository:
     """Create, tag, and publish one mock product repository with chosen visibility."""
 
+    # setup
     repository = _gitea_api_request(
         container,
         "/api/v1/user/repos",
@@ -198,6 +203,8 @@ def _create_mock_product_repository(
         cwd=local_repository,
         check=True,
     )
+
+    # inital commit and v1
     (local_repository / "v1_test_file.txt").write_text(
         "This file exists only in version 1.\n"
     )
@@ -214,6 +221,14 @@ def _create_mock_product_repository(
         check=True,
     )
     (local_repository / "v1_test_file.txt").unlink()
+
+    # update yaml and create v2 tag
+    coasti_metadata_path = local_repository / "coasti.yml"
+    coasti_metadata = coasti_metadata_path.read_text()
+    assert coasti_metadata.count("version: 1.0.0") == 1
+    coasti_metadata_path.write_text(
+        coasti_metadata.replace("version: 1.0.0", "version: 2.0.0", 1)
+    )
     (local_repository / "v2_test_file.txt").write_text(
         "This file exists only in version 2.\n"
     )
@@ -229,6 +244,8 @@ def _create_mock_product_repository(
         cwd=local_repository,
         check=True,
     )
+
+    # push
     authenticated_url = http_url.replace(
         "http://",
         f"http://{GITEA_USERNAME}:{authentication_repository.http_token}@",

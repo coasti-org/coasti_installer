@@ -10,10 +10,16 @@ import coasti.cli as cli
 import coasti.product.cli as product_cli
 from coasti.git import GitProbeResult
 
-from .product_test_helpers import add_product, force_authentication, install_product
+from .product_test_helpers import (
+    add_product,
+    commit_product,
+    force_authentication,
+    install_product,
+    update_product,
+)
 
 
-class TestPublicProduct:
+class TestPublicProductAdd:
     """Exercise product workflows that do not require repository credentials."""
 
     @pytest.mark.integration
@@ -103,7 +109,7 @@ class TestPublicProduct:
         assert (product_directory / "config" / ".env").is_file()
 
 
-class TestPrivateProduct:
+class TestPrivateProductAdd:
     """Exercise product workflows that require private repository credentials."""
 
     @pytest.mark.integration
@@ -340,3 +346,120 @@ class TestProductAddDialog:
         )["products"]
         product = next(product for product in products if product["id"] == product_id)
         assert product["vcs_auth_type"] == secret_kind
+
+
+class TestProductUpdate:
+    """Exercise product-update workflows."""
+
+    @pytest.mark.integration
+    def test_product_update_replaces_versioned_files(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+    ):
+        product_id = "mock_public_update"
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            public_mock_product_repository.http_url,
+            product_id,
+            vcs_ref="v1.0.0",
+            vcs_auth_type="skip",
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        result = install_product(cli_runner, coasti_instance_dir, product_id)
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        product_directory = coasti_instance_dir / "products" / product_id
+        assert (product_directory / "v1_test_file.txt").is_file()
+        assert not (product_directory / "v2_test_file.txt").exists()
+        assert (
+            yaml.safe_load((product_directory / "coasti.yml").read_text())["version"]
+            == "1.0.0"
+        )
+        commit_product(coasti_instance_dir, product_id)
+
+        result = update_product(
+            cli_runner,
+            coasti_instance_dir,
+            product_id,
+            vcs_ref="v2.0.0",
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        assert not (product_directory / "v1_test_file.txt").exists()
+        assert (product_directory / "v2_test_file.txt").is_file()
+        assert (
+            yaml.safe_load((product_directory / "coasti.yml").read_text())["version"]
+            == "2.0.0"
+        )
+        products = yaml.safe_load(
+            (coasti_instance_dir / "config" / "products.yml").read_text()
+        )["products"]
+        product = next(product for product in products if product["id"] == product_id)
+        assert product["vcs_ref"] == "v2.0.0"
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("secret_kind", ["SSH Key", "Auth Token"])
+    def test_private_product_update_uses_saved_authentication(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        private_mock_product_repository,
+        ssh_authentication,
+        secret_kind: str,
+        monkeypatch,
+    ):
+        force_authentication(monkeypatch)
+        environment: dict[str, str] = {}
+        repository_url = private_mock_product_repository.http_url
+        authentication_data = {
+            "vcs_auth_type": secret_kind,
+            "vcs_auth_token": private_mock_product_repository.http_token,
+        }
+        if secret_kind == "SSH Key":
+            environment = ssh_authentication(private_mock_product_repository)
+            repository_url = private_mock_product_repository.ssh_url
+            authentication_data = {
+                "vcs_auth_type": secret_kind,
+                "vcs_auth_sshkeypath": str(
+                    private_mock_product_repository.ssh_private_key
+                ),
+            }
+
+        product_id = f"mock_private_update_{secret_kind.lower().replace(' ', '_')}"
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            repository_url,
+            product_id,
+            environment=environment,
+            vcs_ref="v1.0.0",
+            **authentication_data,
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        result = install_product(
+            cli_runner,
+            coasti_instance_dir,
+            product_id,
+            environment=environment,
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        product_directory = coasti_instance_dir / "products" / product_id
+        assert (product_directory / "v1_test_file.txt").is_file()
+        commit_product(coasti_instance_dir, product_id)
+
+        result = update_product(
+            cli_runner,
+            coasti_instance_dir,
+            product_id,
+            vcs_ref="v2.0.0",
+            environment=environment,
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+        assert not (product_directory / "v1_test_file.txt").exists()
+        assert (product_directory / "v2_test_file.txt").is_file()

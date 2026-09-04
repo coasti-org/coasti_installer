@@ -22,6 +22,8 @@ def add_product(
     repository_url: str,
     product_id: str,
     environment: Mapping[str, str] | None = None,
+    *,
+    vcs_ref: str = "main",
     **authentication_data: str,
 ):
     """Add one product through the CLI using pre-populated answers."""
@@ -30,7 +32,7 @@ def add_product(
         "id": product_id,
         "dst_path": f"products/{product_id}",
         "vcs_repo": repository_url,
-        "vcs_ref": "main",
+        "vcs_ref": vcs_ref,
         **authentication_data,
     }
     return cli_runner.invoke(
@@ -47,6 +49,7 @@ def install_product(
     cli_runner: CliRunner,
     coasti_instance_dir: Path,
     product_id: str,
+    environment: Mapping[str, str] | None = None,
 ):
     """Install a product through the CLI without allowing Git prompts."""
 
@@ -55,6 +58,67 @@ def install_product(
         ["product", "install", product_id],
         env={
             **os.environ,
+            **(environment or {}),
+            "COASTI_BASE_DIR": str(coasti_instance_dir),
+            "GIT_TERMINAL_PROMPT": "0",
+        },
+    )
+
+
+def commit_product(
+    coasti_instance_dir: Path,
+    product_id: str,
+):
+    """Commit an installed product so Copier can apply an update to it."""
+
+    product_path = Path("products") / product_id
+    subprocess.run(
+        ["git", "-C", str(coasti_instance_dir), "add", str(product_path)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return subprocess.run(
+        [
+            "git",
+            "-C",
+            str(coasti_instance_dir),
+            "commit",
+            "-m",
+            f"Install {product_id}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def update_product(
+    cli_runner: CliRunner,
+    coasti_instance_dir: Path,
+    product_id: str,
+    *,
+    vcs_ref: str | None = None,
+    pretend: bool = False,
+    answers_file: str | None = None,
+    environment: Mapping[str, str] | None = None,
+):
+    """Update a product through the CLI without allowing Git prompts."""
+
+    command = ["--quiet", "product", "update", product_id]
+    if vcs_ref is not None:
+        command.extend(["--vcs-ref", vcs_ref])
+    if pretend:
+        command.append("--pretend")
+    if answers_file is not None:
+        command.extend(["--answers-file", answers_file])
+
+    return cli_runner.invoke(
+        cli.app,
+        command,
+        env={
+            **os.environ,
+            **(environment or {}),
             "COASTI_BASE_DIR": str(coasti_instance_dir),
             "GIT_TERMINAL_PROMPT": "0",
         },

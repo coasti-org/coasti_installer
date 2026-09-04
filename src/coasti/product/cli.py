@@ -46,7 +46,9 @@ def ensure_base_dir(ctx: typer.Context):
     if getattr(coasti_ctx, "base_dir_valid", False):
         return coasti_ctx
 
-    base_dir = Path(os.getenv("COASTI_BASE_DIR", coasti_ctx.base_dir)).absolute()
+    # Resolve temporary-directory symlinks so Copier and Git use the same
+    # path when locating the installed product's repository.
+    base_dir = Path(os.getenv("COASTI_BASE_DIR", coasti_ctx.base_dir)).resolve()
 
     dir_is_valid = (base_dir / "config" / "products.yml").is_file()
     if not dir_is_valid and not coasti_ctx.quiet:
