@@ -51,7 +51,7 @@ AUTH_QUESTIONS: QuestionsDict = {
         "type": "str",
         "help": "Enter your auth token:",
         "placeholder": "github_pat_123...",
-        "default": "",
+        "default": "",  # '' = latest, copier convention
         "secret": True,
         "when": "{{ vcs_auth_type in ['Auth Token'] }}",
     },

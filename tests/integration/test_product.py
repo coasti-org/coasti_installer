@@ -44,7 +44,7 @@ class TestPublicProductAdd:
         assert product["id"] == "mock_public"
         assert product["dst_path"] == "products/mock_public"
         assert product["vcs_repo"] == public_mock_product_repository.http_url
-        assert product["vcs_ref"] == "main"
+        assert product["vcs_ref"] == ""
         assert product["vcs_auth_type"] == "skip"
 
     @pytest.mark.integration
@@ -108,6 +108,43 @@ class TestPublicProductAdd:
         assert (product_directory / "README.md").is_file()
         assert (product_directory / "config" / ".env").is_file()
 
+    @pytest.mark.integration
+    @pytest.mark.parametrize(
+        ("vcs_ref", "expected_version"),
+        [
+            ("v1.0.0", "1.0.0"),
+            ("v2.0.0", "2.0.0"),
+            ("", "3.0.0"),  # '' = latest, copier convention
+        ],
+    )
+    def test_product_install_uses_requested_or_latest_version(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+        vcs_ref: str,
+        expected_version: str,
+    ):
+        product_id = f"mock_install_{expected_version.replace('.', '_')}"
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            public_mock_product_repository.http_url,
+            product_id,
+            vcs_ref=vcs_ref,
+            vcs_auth_type="skip",
+        )
+        assert result.exit_code == 0, result.exception
+
+        result = install_product(cli_runner, coasti_instance_dir, product_id)
+        assert result.exit_code == 0, result.exception
+
+        product_directory = coasti_instance_dir / "products" / product_id
+        assert (
+            yaml.safe_load((product_directory / "coasti.yml").read_text())["version"]
+            == expected_version
+        )
+
 
 class TestPrivateProductAdd:
     """Exercise product workflows that require private repository credentials."""
@@ -160,7 +197,7 @@ class TestPrivateProductAdd:
         assert product["id"] == product_id
         assert product["dst_path"] == f"products/{product_id}"
         assert product["vcs_repo"] == repository_url
-        assert product["vcs_ref"] == "main"
+        assert product["vcs_ref"] == ""
         assert product["vcs_auth_type"] == secret_kind
 
     @pytest.mark.integration
@@ -208,7 +245,7 @@ class TestPrivateProductAdd:
                         "id": product_id,
                         "dst_path": f"products/{product_id}",
                         "vcs_repo": repository_url,
-                        "vcs_ref": "main",
+                        "vcs_ref": "",  # '' = latest, copier convention
                         **authentication_data,
                     }
                 ),
@@ -254,7 +291,7 @@ class TestProductAddDialog:
                         "id": "mock_public_dialog",
                         "dst_path": "products/mock_public_dialog",
                         "vcs_repo": public_mock_product_repository.http_url,
-                        "vcs_ref": "main",
+                        "vcs_ref": "",  # '' = latest, copier convention
                     }
                 ),
             ],
@@ -324,7 +361,7 @@ class TestProductAddDialog:
                             f"{secret_kind.lower().replace(' ', '_')}"
                         ),
                         "dst_path": "products/mock_private_dialog",
-                        "vcs_ref": "main",
+                        "vcs_ref": "",  # '' = latest, copier convention
                     }
                 ),
             ],
@@ -400,6 +437,45 @@ class TestProductUpdate:
         )["products"]
         product = next(product for product in products if product["id"] == product_id)
         assert product["vcs_ref"] == "v2.0.0"
+
+    @pytest.mark.integration
+    def test_product_update_without_ref_uses_latest_tagged_version(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+    ):
+        product_id = "mock_public_update_latest"
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            public_mock_product_repository.http_url,
+            product_id,
+            vcs_ref="v1.0.0",
+            vcs_auth_type="skip",
+        )
+        assert result.exit_code == 0, result.exception
+
+        result = install_product(cli_runner, coasti_instance_dir, product_id)
+        assert result.exit_code == 0, result.exception
+        commit_product(coasti_instance_dir, product_id)
+
+        # An empty reference explicitly requests the latest tagged release.
+        result = update_product(
+            cli_runner,
+            coasti_instance_dir,
+            product_id,
+            vcs_ref="",  # '' = latest, copier convention
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        product_directory = coasti_instance_dir / "products" / product_id
+        assert (product_directory / "v2_test_file.txt").is_file()
+        assert (product_directory / "v3_test_file.txt").is_file()
+        assert (
+            yaml.safe_load((product_directory / "coasti.yml").read_text())["version"]
+            == "3.0.0"
+        )
 
     @pytest.mark.integration
     @pytest.mark.parametrize("secret_kind", ["SSH Key", "Auth Token"])

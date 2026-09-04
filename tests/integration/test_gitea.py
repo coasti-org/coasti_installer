@@ -94,10 +94,10 @@ def test_private_readme_repository_is_not_accessible_with_wrong_ssh_key(
 
 
 @pytest.mark.integration
-def test_private_mock_product_repository_exports_both_version_tags(
+def test_private_mock_product_repository_exports_all_version_tags(
     private_mock_product_repository,
 ):
-    """Verify that the mock product repository publishes both Copier versions."""
+    """Verify that the mock product repository publishes all Copier versions."""
 
     authenticated_url = private_mock_product_repository.http_url.replace(
         "http://",
@@ -118,6 +118,7 @@ def test_private_mock_product_repository_exports_both_version_tags(
     assert exported_tags == {
         "refs/tags/v1.0.0",
         "refs/tags/v2.0.0",
+        "refs/tags/v3.0.0",
     }
 
 

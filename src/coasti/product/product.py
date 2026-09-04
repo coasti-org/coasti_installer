@@ -184,7 +184,7 @@ class Product:
             "vcs_repo": "",
             "id": "",
             "dst_path": "",
-            "vcs_ref": "",
+            "vcs_ref": "",  # '' = latest, copier convention
             "vcs_auth_type": "skip",
             "vcs_auth_value": AUTH_SKIP_SENTINEL,
         }
@@ -315,6 +315,8 @@ class Product:
             - None means use previous value (taken from products.yml)
             - strings pass directly to copier, matching cli behvaiour,
             - where empty string means use latest tagged version (consisten with copier)
+              Copier does not have a placeholder for "use whatever latest tagged
+              version there is"; its convention is to use an empty reference.
         - pretend:
             Run copier in pretend mode, and make no changes to products.yml
         - answers_file:

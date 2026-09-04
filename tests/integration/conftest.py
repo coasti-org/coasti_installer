@@ -95,11 +95,12 @@ def private_mock_product_repository(
     readme_only_repository: GiteaRepository,
     tmp_path_factory: pytest.TempPathFactory,
 ) -> GiteaRepository:
-    """Publish two tagged versions of the mock product template in Gitea.
+    """Publish three tagged versions of the mock product template in Gitea.
 
     Version ``v1.0.0`` contains ``v1_test_file.txt``. Version ``v2.0.0`` removes
-    that file and adds ``v2_test_file.txt`` so update tests can verify file
-    additions and removals.
+    that file and adds ``v2_test_file.txt``. Version ``v3.0.0`` retains the
+    version 2 file and adds ``v3_test_file.txt`` so tests can verify that the
+    latest tagged version is selected when no reference is specified.
     """
 
     return _create_mock_product_repository(
@@ -245,13 +246,43 @@ def _create_mock_product_repository(
         check=True,
     )
 
+    # update yaml and create v3 tag
+    coasti_metadata = coasti_metadata_path.read_text()
+    assert coasti_metadata.count("version: 2.0.0") == 1
+    coasti_metadata_path.write_text(
+        coasti_metadata.replace("version: 2.0.0", "version: 3.0.0", 1)
+    )
+    (local_repository / "v3_test_file.txt").write_text(
+        "This file exists only in version 3.\n"
+    )
+    subprocess.run(["git", "add", "-A"], cwd=local_repository, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "Add version 3 test file"],
+        cwd=local_repository,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "tag", "v3.0.0"],
+        cwd=local_repository,
+        check=True,
+    )
+
     # push
     authenticated_url = http_url.replace(
         "http://",
         f"http://{GITEA_USERNAME}:{authentication_repository.http_token}@",
     )
     subprocess.run(
-        ["git", "push", authenticated_url, "main", "v1.0.0", "v2.0.0"],
+        [
+            "git",
+            "push",
+            authenticated_url,
+            "main",
+            "v1.0.0",
+            "v2.0.0",
+            "v3.0.0",
+        ],
         cwd=local_repository,
         check=True,
         capture_output=True,

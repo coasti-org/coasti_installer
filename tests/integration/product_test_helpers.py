@@ -23,7 +23,7 @@ def add_product(
     product_id: str,
     environment: Mapping[str, str] | None = None,
     *,
-    vcs_ref: str = "main",
+    vcs_ref: str = "",  # '' = latest, copier convention
     **authentication_data: str,
 ):
     """Add one product through the CLI using pre-populated answers."""
@@ -32,7 +32,7 @@ def add_product(
         "id": product_id,
         "dst_path": f"products/{product_id}",
         "vcs_repo": repository_url,
-        "vcs_ref": vcs_ref,
+        "vcs_ref": vcs_ref,  # '' = latest, copier convention
         **authentication_data,
     }
     return cli_runner.invoke(
