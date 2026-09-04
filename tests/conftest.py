@@ -8,12 +8,18 @@ from unittest import mock
 
 import pytest
 from pytest import Item
-from typer.testing import CliRunner
+from typer.testing import BytesIOCopy, CliRunner
 
 
 @pytest.fixture
-def cli_runner() -> CliRunner:
-    """Return a Typer CliRunner for testing CLI commands."""
+def cli_runner(monkeypatch: pytest.MonkeyPatch) -> CliRunner:
+    """Return a CliRunner whose captured streams survive prompt cleanup."""
+
+    # Prompt-toolkit can close Click's capture stream on Linux.  Click then
+    # fails while converting the stream to a test result, masking the command's
+    # actual exit code.  The stream is owned by the test runner, so closing it
+    # must not discard output before ``CliRunner.invoke`` has collected it.
+    monkeypatch.setattr(BytesIOCopy, "close", lambda stream: stream.flush())
 
     return CliRunner()
 
@@ -47,20 +53,17 @@ def coasti_instance_dir(coasti_template_bundle):
     A working instance of coasti with local version control.
     """
 
-    import coasti.cli as cli
+    from coasti.init import init as init_command
 
-    cli_runner = CliRunner()
     with tempfile.TemporaryDirectory() as tmp_path:
         coasti_dir = Path(tmp_path) / "coasti"
-        command = ["init", "--data", '{"vcs_repo_type" : "local"}']
-        command += ["--vcs-ref", "HEAD"]
-        command += [str(coasti_dir)]
-        result = cli_runner.invoke(cli.app, command)
-        assert result.exit_code == 0, (
-            f"coasti init failed.\n"
-            f"exit_code={result.exit_code}\n"
-            f"stdout:\n{result.stdout}\n"
-            f"exception:\n{result.exception!r}\n"
+        # To avoid issues on CI runnter (ubuntu) we _do not_ use the cli runner here.
+        # Calling the command function directly avoids Click's temporary stdout
+        # stream being closed by Copier on Linux before CliRunner can collect it.
+        init_command(
+            coasti_dir=coasti_dir,
+            data='{"vcs_repo_type" : "local"}',
+            vcs_ref="HEAD",
         )
         assert coasti_dir.is_dir()
         assert (coasti_dir / "products").is_dir()

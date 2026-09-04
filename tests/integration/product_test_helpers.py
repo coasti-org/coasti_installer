@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 from collections.abc import Mapping
 from pathlib import Path
@@ -13,7 +14,8 @@ from typer.testing import CliRunner
 
 import coasti.cli as cli
 import coasti.product.cli as product_cli
-from coasti.git import GitProbeResult
+from coasti.git import GitAccessFailure, GitProbeResult
+from coasti.logger import log
 
 
 def add_product(
@@ -146,8 +148,18 @@ def force_authentication(monkeypatch: MonkeyPatch) -> None:
     def check_access_with_authentication(url: str) -> GitProbeResult:
         if url not in unauthenticated_urls:
             unauthenticated_urls.add(url)
-            return GitProbeResult(is_accessible=False)
-        return real_check_access_to_git_repo(url)
+            log.debug(f"Test auth probe intentionally rejected: url={url}")
+            return GitProbeResult(
+                is_accessible=False,
+                failure=GitAccessFailure.AUTHENTICATION,
+            )
+        result = real_check_access_to_git_repo(url)
+        log.debug(
+            "Test authenticated probe result: "
+            f"url={url}, accessible={result.is_accessible}, "
+            f"failure={result.failure}, detail={result.detail}"
+        )
+        return result
 
     monkeypatch.setattr(
         product_cli, "check_access_to_git_repo", check_access_with_authentication
@@ -173,7 +185,20 @@ def ssh_environment(
     )
     known_hosts_path = ssh_directory / "known_hosts"
     known_hosts_path.write_text(scan_result.stdout)
+    ssh_command = (
+        f"ssh -i {shlex.quote(repository.ssh_private_key.as_posix())} "
+        "-o IdentitiesOnly=yes "
+        f"-o UserKnownHostsFile={shlex.quote(known_hosts_path.as_posix())} "
+        "-o StrictHostKeyChecking=yes"
+    )
     return (
-        {"HOME": str(home_directory), "USERPROFILE": str(home_directory)},
+        {
+            "HOME": str(home_directory),
+            "USERPROFILE": str(home_directory),
+            # This get overwritten by our git injection, so it wont break our tests.
+            # But is needed for CI runners, which also need a working ssh + git setup
+            # to talk to our git-container
+            "GIT_SSH_COMMAND": ssh_command,
+        },
         known_hosts_path,
     )

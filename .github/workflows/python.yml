@@ -74,7 +74,7 @@ jobs:
           git config --global init.defaultBranch main
       - name: Run integration tests
         run: |
-          uv run pytest --integration -m integration tests/integration -v
+          uv run pytest --integration -m integration tests/integration -v --log-cli-level=DEBUG
 
   test:
     name: Run tests
