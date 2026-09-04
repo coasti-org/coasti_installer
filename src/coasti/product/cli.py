@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import json
 import os
-from copy import deepcopy
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 import copier
 import typer
@@ -13,7 +12,12 @@ from rich.table import Table
 from ruamel.yaml import YAML
 
 from coasti.cli_context import ensure_coasti_namespace
-from coasti.git import can_access_git_repo, copier_git_injection
+from coasti.git import (
+    GitAccessFailure,
+    check_access_to_git_repo,
+    copier_git_injection,
+    get_git_or_exit,
+)
 from coasti.logger import log
 from coasti.prompt import (
     prompt_like_copier,
@@ -21,7 +25,12 @@ from coasti.prompt import (
 )
 
 from .product import Product, ProductsYamlIO
-from .questions import PRODUCT_QUESTIONS
+from .questions import (
+    AUTH_QUESTIONS,
+    AUTH_SKIP_SENTINEL,
+    PRODUCT_QUESTIONS,
+    ProductData,
+)
 
 yaml = YAML()
 app = typer.Typer()
@@ -37,7 +46,9 @@ def ensure_base_dir(ctx: typer.Context):
     if getattr(coasti_ctx, "base_dir_valid", False):
         return coasti_ctx
 
-    base_dir = Path(os.getenv("COASTI_BASE_DIR", coasti_ctx.base_dir)).absolute()
+    # Resolve temporary-directory symlinks so Copier and Git use the same
+    # path when locating the installed product's repository.
+    base_dir = Path(os.getenv("COASTI_BASE_DIR", coasti_ctx.base_dir)).resolve()
 
     dir_is_valid = (base_dir / "config" / "products.yml").is_file()
     if not dir_is_valid and not coasti_ctx.quiet:
@@ -108,11 +119,13 @@ def add(
 ):
     """Add a product to coasti"""
 
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
 
     # Parse skip-prompt answers and internal variables for answers_file
-    questions = deepcopy(PRODUCT_QUESTIONS)
-    extra_data: dict = {}
+
+    extra_data: ProductData = {}  # type: ignore # so be defensive!
     if data is not None:
         try:
             extra_data = json.loads(data)
@@ -121,41 +134,74 @@ def add(
             log.error(f"Input was: {data!r}")
             raise typer.Exit(code=1)
 
-    copier_data: dict[str, Any] = {}
-    copier_data.update(extra_data)
+    product = Product.draft(yaml_io)
+    product.data.update(extra_data)
+    repository_url = vcs_repo or product.data.get("vcs_repo")
 
-    vcs_repo = (
-        vcs_repo
-        or extra_data.get("vcs_repo")
-        or prompt_single("Url of the product's git repo:", type=str)
-    )
-    copier_data.update({"vcs_repo": vcs_repo})
+    while True:
+        if repository_url is None:
+            repository_url = prompt_single("Url of the product's git repo:", type=str)
 
-    # check if you can access the git repo
-    if not can_access_git_repo(vcs_repo):
+        probe = check_access_to_git_repo(repository_url)
+        if probe.is_accessible:
+            product.data["vcs_repo"] = repository_url
+            product.data["vcs_auth_type"] = "skip"
+            product.data["vcs_auth_value"] = AUTH_SKIP_SENTINEL
+            break
+
+        probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
+
+        # Ask authentication questions
         log.info("Failed to access repo without authentication.")
-        questions["vcs_auth_type"]["choices"].remove("skip")
-        questions["vcs_auth_type"]["default"] = "Auth Token"
-    else:
-        questions["vcs_auth_type"]["help"] = (
-            "Optional: " + questions["vcs_auth_type"]["help"]
+
+        auth_response = prompt_like_copier(
+            questions=AUTH_QUESTIONS,
+            data={**extra_data, "vcs_repo": repository_url},
         )
 
-    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
-    p_res = prompt_like_copier(
-        questions=questions,
-        data=copier_data,
-    )
-    product = Product(yaml_io=yaml_io, data=p_res)
+        log.debug(f"{auth_response=}")
 
-    # FIXME: add single prompt verification via function so we can verify in place
-    with copier_git_injection(
-        https_token=product.vcs_auth_token,
-        ssh_key_path=product.vcs_auth_sshkeypath,
-    ):
-        if not can_access_git_repo(vcs_repo):
-            log.error("Could not access repo, despite authentication.")
+        product.data.update(
+            {
+                "vcs_repo": repository_url,
+                "vcs_auth_type": auth_response.answers["vcs_auth_type"],
+                "vcs_auth_value": auth_response.answers["vcs_auth_value"],
+            }
+        )
+
+        log.debug(f"{product.data=}")
+        log.debug(f"{product.vcs_auth_token=}, {product.vcs_auth_sshkeypath=}")
+
+        with copier_git_injection(
+            https_token=product.vcs_auth_token,
+            ssh_key_path=product.vcs_auth_sshkeypath,
+        ):
+            probe = check_access_to_git_repo(repository_url)
+            if probe.is_accessible:
+                break
+
+            probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
+
+        log.error(
+            "Could not access the repository with the provided authentication. "
+            "Please check the URL or credentials and try again."
+        )
+        if ensure_coasti_namespace(ctx).quiet:
             raise typer.Exit(code=1)
+
+        # Retry, and allow user to correct url and auth
+        repository_url = None
+
+    log.debug(f"{product.data=}")
+    log.debug("Done with auth questions. Asking general questions")
+
+    p_res = prompt_like_copier(
+        questions=PRODUCT_QUESTIONS,
+        data={**extra_data, "vcs_repo": product.data["vcs_repo"]},
+    )
+    product.data.update(p_res.answers)
+
+    log.debug(f"{product.data=}")
 
     if product.id in yaml_io.product_ids:
         if coasti_ctx.quiet or not prompt_single(
@@ -189,6 +235,8 @@ def install(
 
     Uses copier, git and details from config/products.yml
     """
+
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
 
     yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
@@ -218,7 +266,21 @@ def update(
     vcs_ref: Annotated[
         str | None,
         typer.Option(
-            "--vcs-ref", help="Version control reference, e.g. git branch or commit"
+            "--vcs-ref",
+            help="Version control reference, e.g. git branch or commit. "
+            "Pass empty string to use the latest tagged version.",
+        ),
+    ] = None,
+    pretend: Annotated[
+        bool,
+        typer.Option("--pretend", help="Run but do not make any changes"),
+    ] = False,
+    answers_file: Annotated[
+        str | None,
+        typer.Option(
+            "--answers-file",
+            help="Which answers file to use, relative to products (template) base dir. "
+            "Leave empty try coastis default, then copiers default.",
         ),
     ] = None,
 ):
@@ -227,17 +289,15 @@ def update(
 
     Uses copier, git and details from config/products.yml
     """
+
+    get_git_or_exit()
     coasti_ctx = ensure_base_dir(ctx)
 
     yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
     pid = _product_id_from_yaml_or_prompt(yaml_io, pid)
     try:
         product = yaml_io.get_product(pid)
-
-        if vcs_ref is None:
-            vcs_ref = product.data["vcs_ref"]
-
-        product.update(vcs_ref)
+        product.update(vcs_ref, pretend, answers_file=answers_file)
     except copier.ProcessExecutionError as e:
         log.error(f"Failed to update {pid}. Check your connection and authentication.")
         log.info(e)

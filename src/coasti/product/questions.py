@@ -17,6 +17,9 @@ class ProductData(TypedDict):
     id: str
     dst_path: str
     vcs_ref: str
+    # this vcs_ref is less detailed than the _commit copier tracks in the answers file.
+    # here, we keep the user choice (a branch, explicit commit, tag,
+    # or '' for latest version). It matches copiers _commit field only if it's a tag
     vcs_auth_type: Literal["skip", "Auth Token", "SSH Key"]
     vcs_auth_value: str
 
@@ -35,8 +38,7 @@ class ProductData(TypedDict):
 AUTH_FILE_SENTINEL = "__file__"  # get secret from file
 AUTH_SKIP_SENTINEL = "__skip__"  # when no auth used
 
-PRODUCT_QUESTIONS: QuestionsDict = {
-    "vcs_repo": {"type": "str", "help": "Url of the product's git repo"},
+AUTH_QUESTIONS: QuestionsDict = {
     # ask for authentication first, to check connection
     "vcs_auth_type": {
         "type": "str",
@@ -49,7 +51,7 @@ PRODUCT_QUESTIONS: QuestionsDict = {
         "type": "str",
         "help": "Enter your auth token:",
         "placeholder": "github_pat_123...",
-        "default": "",
+        "default": "",  # '' = latest, copier convention
         "secret": True,
         "when": "{{ vcs_auth_type in ['Auth Token'] }}",
     },
@@ -69,6 +71,10 @@ PRODUCT_QUESTIONS: QuestionsDict = {
         "secret": True,
         "when": False,
     },
+}
+
+PRODUCT_QUESTIONS: QuestionsDict = {
+    "vcs_repo": {"type": "str", "help": "Url of the product's git repo"},
     # Fixme: id should come from a custom coasti.yml (or copier.yml?)
     "id": {
         "type": "str",
@@ -85,7 +91,8 @@ PRODUCT_QUESTIONS: QuestionsDict = {
     },
     "vcs_ref": {
         "type": "str",
-        "help": "Version control reference (git branch, tag or commit)",
-        "default": "main",
+        "help": "Version control reference (git branch, tag or commit, "
+        "leave empty for latest)",
+        "default": "",
     },
 }
