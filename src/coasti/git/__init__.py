@@ -50,14 +50,6 @@ def copier_git_injection(
 
     try:
         extra_env: dict[str, Any] = {}
-        log.debug(
-            "Git injection requested: "
-            f"platform={sys.platform}, "
-            f"https_token={'set' if https_token else 'unset'}, "
-            f"ssh_key_path={ssh_key_path!s}, "
-            f"ssh_known_hosts_path={ssh_known_hosts_path!s}"
-        )
-
         if https_token:
             with resources.as_file(
                 resources.files("coasti.git").joinpath(
@@ -66,7 +58,6 @@ def copier_git_injection(
             ) as askpass_script:
                 extra_env["GIT_ASKPASS"] = str(askpass_script)
                 # scripts simply return the token env var
-                askpass_script_exists = Path(askpass_script).is_file()
 
             extra_env["GIT_AUTH_TOKEN"] = https_token
 
@@ -74,10 +65,6 @@ def copier_git_injection(
             # or gui popups (git-for-windows)
             extra_env["GIT_TERMINAL_PROMPT"] = "0"
             extra_env["GCM_INTERACTIVE"] = "false"
-            log.debug(
-                f"Configured Git askpass script: {askpass_script}; "
-                f"exists={askpass_script_exists}"
-            )
 
         elif ssh_key_path:
             if Path(ssh_key_path).is_file():
@@ -91,17 +78,14 @@ def copier_git_injection(
                         f"{shlex.quote(Path(ssh_known_hosts_path).as_posix())}"
                         " -o StrictHostKeyChecking=yes"
                     )
-                log.debug(f"Configured Git SSH command: {extra_env['GIT_SSH_COMMAND']}")
             else:
                 # avoid Prompt injection, skip ssh overwrite
                 log.warning(f"'{ssh_key_path}' is not a valid path for an ssh key.")
 
         def patched_get_git(*args, **kwargs):
             git = original_get_git()
-            # Attach env to the command object.
-            # (Plumbum supports cmd.with_env(VAR=...))
             cmd = git.with_env(**extra_env) if extra_env else git
-            log.debug(f"using git command: {cmd=} {extra_env=}")
+            # log.debug(f"using git command: {cmd=} {extra_env=}")
             return cmd
 
         copier_vcs.get_git = patched_get_git
