@@ -1,8 +1,9 @@
 from unittest import mock
 
 import pytest
+from plumbum.commands.processes import CommandNotFound
 
-from coasti import cli
+import coasti.cli as cli
 
 
 @pytest.mark.parametrize(
@@ -24,3 +25,15 @@ def test_verbose_levels(cli_runner, verbose_args, expected_level):
         args = verbose_args + ["version"]
         cli_runner.invoke(cli.app, args)
         mock_setup.assert_called_once_with(expected_level)
+
+
+def test_git_is_required(cli_runner):
+    """Fail early with a useful message when Git is unavailable."""
+    with mock.patch(
+        "coasti.git.copier_vcs.get_git",
+        side_effect=CommandNotFound("git", "PATH"),
+    ):
+        result = cli_runner.invoke(cli.app, ["init"])
+
+    assert result.exit_code != 0
+    assert "Git is required" in result.output

@@ -13,6 +13,22 @@ TLDR:
 
 ## Unreleased
 
+### Fixed
+
+- Handling of credentials during product add is now more robust (#18)
+- We now check the git installation for commands that need it, and display help (#14)
+
+### Added
+
+- New command: `product remove`
+- `product add` workflow is now more interactive (and streamlined) - we check repo access _before_ querying for credentials.
+
+### Dev
+
+- Added Integration Tests: we now have a docker setup in pytest that provies a git server.
+  This allows us to test product installations from private repos and to verify that auth
+  methods and dialog flows work.
+
 ## 0.2.4 - 2026-08-27
 
 ### Fixed

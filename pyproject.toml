@@ -51,7 +51,11 @@ docs = [
     "sphinxcontrib-typer[html]>=0.8.1",
     "sphinxcontrib-mermaid>=2.0.0",
 ]
-test = ["pytest>=9.0.2", "pytest-cov>=7.0.0"]
+test = [
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "testcontainers>=4.15.0",
+]
 
 [build-system]
 requires = ["uv_build>=0.9.18,<0.10.0"]
@@ -80,6 +84,9 @@ select = [
 
 [tool.pytest.ini_options]
 addopts = "--cov=coasti"
+markers = [
+    "integration: tests that require Docker and a disposable Git service",
+]
 
 [tool.mypy]
 check_untyped_defs = true

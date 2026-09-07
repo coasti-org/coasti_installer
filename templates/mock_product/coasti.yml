@@ -1,0 +1,14 @@
+# Metadaten und Infos, die zur Installation via Coasti benötigt werden
+
+# Einzigartige ID, sollte company_my_product folgen, keine Sonderzeichen außer _
+id: linkfish_mock_product
+
+# Shorthands sind z.b. Präfixe für Environment-Variablen und Frontend-Datasets
+id_shorthand: lfmp
+
+# Der Name taucht z.b. im Frontend Dashboard auf (muss manuell konsistent gehalten werden)
+name: Mock Product
+
+# Version folgt SemVer und muss in dbt_project.yml und pyproject.toml gespiegelt sein.
+# Das muss bisher manuell erfolgen.
+version: 1.0.0

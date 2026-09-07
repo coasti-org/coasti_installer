@@ -1,5 +1,33 @@
-_min_copier_version: 9.11.3
+# Coasti nutzt Copier zum installieren von Produkten
+# Für Details zum Erstellen von Copier-Templates, und den hier verwendeten Einstellungen:
+# https://copier.readthedocs.io/en/stable/
+
+
+_min_copier_version: 9.17.0
 
 _exclude_templates:
+    - .env
+    - .gitignore
+    - .gitattributes
     - .gitkeep
+    - .git-blame-ignore-revs
+
+_exclude:
+    - .git
+    - .git/**
+    - .github
+    - coasti_install_questions.yml
     - copier.yml
+
+---
+
+_answers_file: coasti_install_answers.yml
+
+# Updates sollten nicht bereits getroffene Einstellungen überschreiben.
+# V.a. da .env Dateien nie in der Versions-Kontrolle landen sollen!
+_skip_if_exists:
+    - config/.env
+
+# Mache Inhalt von coasti.yml in copier verfügbar, siehe _message_after_copy
+_external_data:
+    coasti: "coasti.yml"

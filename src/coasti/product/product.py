@@ -17,6 +17,7 @@ Product         (in RAM Instance around ProductData with functions to install et
 
 from __future__ import annotations
 
+import shutil
 import sys
 from contextlib import contextmanager
 from copy import deepcopy
@@ -139,6 +140,11 @@ class ProductsYamlIO:
 
         log.info(f"Updated {product.id} in products.yml")
 
+    def remove_product(self, product: Product):
+        """Remove a product entry from products.yml."""
+
+        self.yaml_data["products"].remove(self.get_enry(product.id))
+
 
 class Product:
     """
@@ -161,15 +167,38 @@ class Product:
         yaml_io: ProductsYamlIO,
         data: ProductData | PromptResponse[ProductData],
     ) -> None:
-
         self.yaml_io = yaml_io
         if isinstance(data, PromptResponse):
             data = data.answers
         self.data = deepcopy(data)
 
-        # make sure helper questions dont persist
+        # make sure helper questions dont persist.
+        # we store vcs_auth_value instead, and have properties.
         self.data.pop("vcs_auth_sshkeypath", None)
         self.data.pop("vcs_auth_token", None)
+
+    @classmethod
+    def draft(cls, yaml_io: ProductsYamlIO) -> Product:
+        """
+        Create an in-memory product that can be completed before writing.
+
+        When using this, product.data contains non-validated values.
+        It is your responsibility to replace them before writing!
+        """
+
+        draft_data: ProductData = {
+            "vcs_repo": "",
+            "id": "",
+            "dst_path": "",
+            "vcs_ref": "",  # '' = latest, copier convention
+            "vcs_auth_type": "skip",
+            "vcs_auth_value": AUTH_SKIP_SENTINEL,
+        }
+
+        return cls(
+            yaml_io=yaml_io,
+            data=draft_data,
+        )
 
     @property
     def id(self):
@@ -233,6 +262,30 @@ class Product:
         self.yaml_io.upsert_product(self)
         self.yaml_io.write()
 
+    def remove(self):
+        """Delete the installed product and its configuration entry."""
+
+        symlink_paths = (
+            self.coasti_base_dir / "config" / self.id,
+            self.coasti_base_dir / "config" / "secrets" / self.id,
+            self.coasti_base_dir / "data" / self.id,
+            self.coasti_base_dir / "logs" / self.id,
+        )
+        for symlink_path in symlink_paths:
+            if symlink_path.is_symlink():
+                symlink_path.unlink()
+
+        if self.dst_path.is_symlink():
+            self.dst_path.unlink()
+        elif self.dst_path.exists():
+            shutil.rmtree(self.dst_path.resolve())
+
+        if self.secret_path.is_symlink() or self.secret_path.is_file():
+            self.secret_path.unlink()
+
+        self.yaml_io.remove_product(self)
+        log.info(f"Removed {self.id}")
+
     def _write_and_clear_secrets(self):
         """Take unmasked answers and save auth token or ssh key path to file.
 
@@ -276,10 +329,33 @@ class Product:
 
         self._create_symlinks()
 
-    def update(self, vcs_ref: str | None):
+    def update(
+        self,
+        vcs_ref: str | None = None,
+        pretend: bool = False,
+        answers_file: str | None = None,
+    ):
         """
         Update this product by getting its resources via copier.
         Authentication is retrieved from disk and injected into the git commands.
+
+        Arguments
+        ---------
+        - vcs_ref:
+            - None means use previous value (taken from products.yml)
+            - strings pass directly to copier, matching cli behvaiour,
+            - where empty string means use latest tagged version (consisten with copier)
+              Copier does not have a placeholder for "use whatever latest tagged
+              version there is"; its convention is to use an empty reference.
+        - pretend:
+            Run copier in pretend mode, and make no changes to products.yml
+        - answers_file:
+            Which answers file to use, relative to products (template) base dir.
+            When set to 'None' we try those files in order, using the first
+            one that exists:
+            - coasti_install_answers.yml (default for coasti products)
+            - config/install_answers.yml (old convention we used briefly)
+            - .copier-answers.yml (copiers default)
 
         Notes
         -----
@@ -290,12 +366,24 @@ class Product:
 
         if vcs_ref is None:
             vcs_ref = self.data["vcs_ref"]
-        elif vcs_ref != self.data["vcs_ref"] and self.yaml_io is not None:
-            log.debug(
-                f"Writing product to update products.yml to new vcs_ref '{vcs_ref}'"
-            )
+        if vcs_ref != self.data["vcs_ref"] and self.yaml_io is not None:
+            log.debug(f"Updating products.yml: {self.data['vcs_ref']} -> '{vcs_ref}'")
             self.data["vcs_ref"] = vcs_ref
-            self.write()
+            if not pretend:
+                self.write()
+
+        if answers_file is None:
+            for candidate in [
+                "coasti_install_answers.yml",  # default for coasti products
+                "config/install_answers.yml",  # old convention we used briefly
+                ".copier-answers.yml",  # copier's own default
+            ]:
+                if (self.dst_path / candidate).is_file():
+                    answers_file = candidate
+                    log.debug(f"Found answers file at {answers_file}")
+                    break
+        if answers_file is None:
+            raise ValueError("Could not find answers file in expected locations.")
 
         # Clone template
         with copier_git_injection(
@@ -307,12 +395,13 @@ class Product:
             )
             copier.run_update(
                 dst_path=self.dst_path,
-                answers_file="config/install_answers.yml",
+                answers_file=answers_file,
                 unsafe=True,  # trust templates, needed because they might have tasks
                 overwrite=True,  # needs to be true for copier update of subprojects
                 skip_answered=True,
                 skip_tasks=False,  # Content package can and should decide this per task
                 vcs_ref=vcs_ref,
+                pretend=pretend,
             )
 
     def _create_symlinks(self):
