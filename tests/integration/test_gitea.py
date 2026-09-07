@@ -2,7 +2,6 @@
 
 import subprocess
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import pytest
 
@@ -25,19 +24,13 @@ def test_private_readme_repository_is_accessible_with_http_token(
 @pytest.mark.integration
 def test_private_readme_repository_is_accessible_with_ssh_key(
     readme_only_repository,
-    tmp_path: Path,
+    gitea_ssh_known_hosts,
 ):
     """Verify that the private README-only repository accepts the generated key."""
 
-    ssh_directory = tmp_path / ".ssh"
-    ssh_directory.mkdir()
-    known_hosts = _create_known_hosts_file(
-        readme_only_repository.ssh_url,
-        ssh_directory,
-    )
     with copier_git_injection(
         ssh_key_path=readme_only_repository.ssh_private_key,
-        ssh_known_hosts_path=known_hosts,
+        ssh_known_hosts_path=gitea_ssh_known_hosts,
     ):
         assert check_access_to_git_repo(readme_only_repository.ssh_url)
 
@@ -58,6 +51,7 @@ def test_private_readme_repository_is_not_accessible_with_wrong_http_token(
 @pytest.mark.integration
 def test_private_readme_repository_is_not_accessible_with_wrong_ssh_key(
     readme_only_repository,
+    gitea_ssh_known_hosts,
     tmp_path: Path,
 ):
     """Verify that an SSH key not registered with Gitea is rejected."""
@@ -78,14 +72,10 @@ def test_private_readme_repository_is_not_accessible_with_wrong_ssh_key(
         capture_output=True,
         text=True,
     )
-    known_hosts = _create_known_hosts_file(
-        readme_only_repository.ssh_url,
-        tmp_path,
-    )
 
     with copier_git_injection(
         ssh_key_path=wrong_private_key,
-        ssh_known_hosts_path=known_hosts,
+        ssh_known_hosts_path=gitea_ssh_known_hosts,
     ):
         assert not check_access_to_git_repo(
             readme_only_repository.ssh_url,
@@ -120,22 +110,3 @@ def test_private_mock_product_repository_exports_all_version_tags(
         "refs/tags/v2.0.0",
         "refs/tags/v3.0.0",
     }
-
-
-def _create_known_hosts_file(repository_url: str, directory: Path) -> Path:
-    parsed_url = urlsplit(repository_url)
-    known_hosts = directory / "known_hosts"
-    scan_result = subprocess.run(
-        [
-            "ssh-keyscan",
-            "-p",
-            str(parsed_url.port),
-            parsed_url.hostname or "",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    known_hosts.write_text(scan_result.stdout)
-    return known_hosts

@@ -169,22 +169,10 @@ def force_authentication(monkeypatch: MonkeyPatch) -> None:
 def ssh_environment(
     repository,
     home_directory: Path,
+    known_hosts_path: Path,
 ) -> tuple[dict[str, str], Path]:
-    """Create SSH environment variables and known-hosts data for a test repo."""
+    """Build SSH env vars for a repo, using the pre-scanned known_hosts file."""
 
-    ssh_directory = home_directory / ".ssh"
-    ssh_directory.mkdir(parents=True)
-    host_and_path = repository.ssh_url.removeprefix("ssh://git@").split("/", maxsplit=1)
-    host, port = host_and_path[0].split(":", maxsplit=1)
-    scan_result = subprocess.run(
-        ["ssh-keyscan", "-p", port, host],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    known_hosts_path = ssh_directory / "known_hosts"
-    known_hosts_path.write_text(scan_result.stdout)
     ssh_command = (
         f"ssh -i {shlex.quote(repository.ssh_private_key.as_posix())} "
         "-o IdentitiesOnly=yes "
@@ -195,9 +183,6 @@ def ssh_environment(
         {
             "HOME": str(home_directory),
             "USERPROFILE": str(home_directory),
-            # This get overwritten by our git injection, so it wont break our tests.
-            # But is needed for CI runners, which also need a working ssh + git setup
-            # to talk to our git-container
             "GIT_SSH_COMMAND": ssh_command,
         },
         known_hosts_path,

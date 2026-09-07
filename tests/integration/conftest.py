@@ -129,25 +129,52 @@ def public_mock_product_repository(
     )
 
 
+@pytest.fixture(scope="module")
+def gitea_ssh_known_hosts(
+    gitea_container: DockerContainer,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Path:
+    """Gitea SSH host key, scanned once per container.
+
+    Scanning per test is unreliable: ssh-keyscan connects without
+    authenticating, and the container's OpenSSH (>= 9.8) penalizes such
+    connections by default, eventually dropping our real SSH connections.
+    """
+
+    host = gitea_container.get_container_host_ip()
+    port = gitea_container.get_exposed_port(22)
+    result = subprocess.run(
+        ["ssh-keyscan", "-t", "ed25519", "-p", str(port), host],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.stdout.strip(), f"ssh-keyscan found no host key for {host}:{port}"
+    known_hosts = tmp_path_factory.mktemp("ssh-known-hosts") / "known_hosts"
+    known_hosts.write_text(result.stdout)
+    return known_hosts
+
+
 @pytest.fixture
 def ssh_authentication(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
+    gitea_ssh_known_hosts: Path,
 ) -> Callable[[GiteaRepository], dict[str, str]]:
-    """Provide SSH setup for tests that access an ephemeral Gitea repository.
+    """Provide SSH env vars for tests accessing an ephemeral Gitea repository.
 
-    The returned factory creates a temporary ``known_hosts`` file by scanning
-    the repository's Gitea host and returns the environment variables needed
-    to make that file the active SSH configuration. It also patches (and later
-    reverts) our copier git injection so the repository's credentials use the
-    same known-hosts file.
-
-    This is only needed because, without known hosts, git asks for confirmation
-    on first connect.
+    The factory patches (and later reverts) the copier git injection so every
+    git command uses the container's known_hosts file, and returns the env
+    vars (HOME, GIT_SSH_COMMAND) that make plain git/ssh behave the same.
     """
 
     def configure(repository: GiteaRepository) -> dict[str, str]:
-        environment, known_hosts_path = ssh_environment(repository, tmp_path)
+        environment, known_hosts_path = ssh_environment(
+            repository,
+            tmp_path,
+            gitea_ssh_known_hosts,
+        )
         original_git_injection = product_cli.copier_git_injection
 
         def git_injection(**kwargs):
