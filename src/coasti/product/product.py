@@ -17,6 +17,7 @@ Product         (in RAM Instance around ProductData with functions to install et
 
 from __future__ import annotations
 
+import shutil
 import sys
 from contextlib import contextmanager
 from copy import deepcopy
@@ -139,6 +140,11 @@ class ProductsYamlIO:
 
         log.info(f"Updated {product.id} in products.yml")
 
+    def remove_product(self, product: Product):
+        """Remove a product entry from products.yml."""
+
+        self.yaml_data["products"].remove(self.get_enry(product.id))
+
 
 class Product:
     """
@@ -255,6 +261,30 @@ class Product:
             self._write_and_clear_secrets()
         self.yaml_io.upsert_product(self)
         self.yaml_io.write()
+
+    def remove(self):
+        """Delete the installed product and its configuration entry."""
+
+        symlink_paths = (
+            self.coasti_base_dir / "config" / self.id,
+            self.coasti_base_dir / "config" / "secrets" / self.id,
+            self.coasti_base_dir / "data" / self.id,
+            self.coasti_base_dir / "logs" / self.id,
+        )
+        for symlink_path in symlink_paths:
+            if symlink_path.is_symlink():
+                symlink_path.unlink()
+
+        if self.dst_path.is_symlink():
+            self.dst_path.unlink()
+        elif self.dst_path.exists():
+            shutil.rmtree(self.dst_path.resolve())
+
+        if self.secret_path.is_symlink() or self.secret_path.is_file():
+            self.secret_path.unlink()
+
+        self.yaml_io.remove_product(self)
+        log.info(f"Removed {self.id}")
 
     def _write_and_clear_secrets(self):
         """Take unmasked answers and save auth token or ssh key path to file.

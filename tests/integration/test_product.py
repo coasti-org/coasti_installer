@@ -539,3 +539,89 @@ class TestProductUpdate:
         assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
         assert not (product_directory / "v1_test_file.txt").exists()
         assert (product_directory / "v2_test_file.txt").is_file()
+
+
+class TestPrivateProductRemove:
+    """
+    Exercise removal of products and their associated resources.
+
+    We (only) use a private repo to include checks for removal of access credentials.
+    """
+
+    @pytest.mark.integration
+    @pytest.mark.parametrize("secret_kind", ["SSH Key", "Auth Token"])
+    def test_product_remove_deletes_all_product_resources(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        private_mock_product_repository,
+        ssh_authentication,
+        secret_kind: str,
+        monkeypatch,
+    ):
+        force_authentication(monkeypatch)
+        environment: dict[str, str] = {}
+        repository_url = private_mock_product_repository.http_url
+        authentication_data = {
+            "vcs_auth_type": secret_kind,
+            "vcs_auth_token": private_mock_product_repository.http_token,
+        }
+        if secret_kind == "SSH Key":
+            environment = ssh_authentication(private_mock_product_repository)
+            repository_url = private_mock_product_repository.ssh_url
+            authentication_data = {
+                "vcs_auth_type": secret_kind,
+                "vcs_auth_sshkeypath": str(
+                    private_mock_product_repository.ssh_private_key
+                ),
+            }
+
+        product_id = f"mock_private_remove_{secret_kind.lower().replace(' ', '_')}"
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            repository_url,
+            product_id,
+            environment=environment,
+            **authentication_data,
+        )
+        assert result.exit_code == 0, result.exception
+
+        result = install_product(
+            cli_runner,
+            coasti_instance_dir,
+            product_id,
+            environment=environment,
+        )
+        assert result.exit_code == 0, result.exception
+
+        product_directory = coasti_instance_dir / "products" / product_id
+        secret_file = (
+            coasti_instance_dir / "config" / "secrets" / f"vcs_auth_{product_id}"
+        )
+        symlink_paths = (
+            coasti_instance_dir / "config" / product_id,
+            coasti_instance_dir / "data" / product_id,
+            coasti_instance_dir / "logs" / product_id,
+        )
+        assert product_directory.is_dir()
+        assert secret_file.is_file()
+        assert all(path.is_symlink() for path in symlink_paths)
+
+        monkeypatch.setattr(product_cli, "prompt_single", lambda *args, **kwargs: True)
+        result = cli_runner.invoke(
+            cli.app,
+            ["product", "remove", product_id],
+            env={"COASTI_BASE_DIR": str(coasti_instance_dir)},
+        )
+        assert result.exit_code == 0, result.exception
+
+        assert not product_directory.exists()
+        assert not secret_file.exists()
+        assert all(not path.exists() for path in symlink_paths)
+        assert (
+            yaml.safe_load(
+                (coasti_instance_dir / "config" / "products.yml").read_text()
+            )["products"]
+            == []
+        )

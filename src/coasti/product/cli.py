@@ -100,6 +100,43 @@ def list(ctx: typer.Context):
 
 
 @app.command()
+def remove(
+    ctx: typer.Context,
+    pid: Annotated[
+        str | None,
+        typer.Argument(
+            help="Id of the product.",
+        ),
+    ] = None,
+):
+    """Remove an installed product and its configuration"""
+
+    coasti_ctx = ensure_base_dir(ctx)
+    yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
+    pid = _product_id_from_yaml_or_prompt(yaml_io, pid)
+    product = yaml_io.get_product(pid)
+
+    if not prompt_single(
+        f"We will remove {pid} and delete ALL its data.\n"
+        "   This includes repo access, configs, and your .env — which are "
+        "likely NOT version controlled.\n"
+        "   Continue?",
+        type=bool,
+        default=False,
+    ):
+        log.info("Cancelled.")
+        raise typer.Exit(code=1)
+
+    try:
+        product.remove()
+        yaml_io.write()
+    except Exception as e:
+        log.error(f"Failed to remove {pid}.")
+        log.error(e)
+        raise typer.Exit(code=1)
+
+
+@app.command()
 def add(
     ctx: typer.Context,
     vcs_repo: Annotated[
