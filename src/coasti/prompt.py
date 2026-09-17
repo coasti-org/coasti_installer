@@ -179,12 +179,20 @@ def _ask_questions_like_copier(
 
     # Mimic Worker._ask() loop
     for var_name, details in questions_data.items():
+        # Make sensitive questions visually distinct before Question builds the
+        # questionary structure that renders the prompt.
         q = Question(
             answers=answers,
             context=context,
             jinja_env=jinja_env,
             var_name=var_name,
-            **details,
+            # use a coasti specific icon, to make it easier to tell
+            # it this is a coasti, or a typer question
+            # To keep things simpler, we use the same icon for secrets.
+            **{
+                **details,
+                "qmark": "🏝️" if details.get("secret") else "🏝️",
+            },
         )
 
         # 1) If last answer exists but cannot be parsed/validated, drop it
