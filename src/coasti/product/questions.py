@@ -39,12 +39,12 @@ AUTH_FILE_SENTINEL = "__file__"  # get secret from file
 AUTH_SKIP_SENTINEL = "__skip__"  # when no auth used
 
 AUTH_QUESTIONS: QuestionsDict = {
-    # ask for authentication first, to check connection
+    # ask for authentication. happens if repo is not public, or automatic,
+    # system-level auth fails
     "vcs_auth_type": {
         "type": "str",
-        "help": "How to authenticateq at {{ vcs_repo }}",
-        "choices": ["skip", "Auth Token", "SSH Key"],
-        "default": "skip",
+        "help": "How to authenticate at {{ vcs_repo }}",
+        "choices": ["Auth Token", "SSH Key"],
     },
     # two helper questions for vcs_auth_value
     "vcs_auth_token": {
@@ -87,7 +87,7 @@ PRODUCT_QUESTIONS: QuestionsDict = {
     "dst_path": {
         "type": "str",
         "help": "Install location:",
-        "default": "products/{{ id }}",
+        "default": '{{ ("products/" ~ id) | realpath }}',
     },
     "vcs_ref": {
         "type": "str",

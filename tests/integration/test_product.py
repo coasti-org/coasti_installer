@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 import coasti.cli as cli
 import coasti.product.cli as product_cli
 from coasti.git import GitProbeResult
+from coasti.product.product import Product, ProductsYamlIO
 
 from .product_test_helpers import (
     add_product,
@@ -21,6 +22,32 @@ from .product_test_helpers import (
 
 class TestPublicProductAdd:
     """Exercise product workflows that do not require repository credentials."""
+
+    @pytest.mark.integration
+    def test_product_details_are_loaded_from_mock_product_repository(
+        self,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+    ):
+        """Read the mock product's coasti.yml from the repository main branch."""
+        product = Product(
+            yaml_io=ProductsYamlIO(coasti_instance_dir),
+            data={
+                "vcs_repo": public_mock_product_repository.http_url,
+                "id": "mock_public_metadata",
+                "dst_path": "products/mock_public_metadata",
+                "vcs_ref": "",
+                "vcs_auth_type": "skip",
+                "vcs_auth_value": "__skip__",
+            },
+        )
+
+        details = product.get_product_details_from_remote()
+
+        assert details["id"] == "linkfish_mock_product"
+        assert details["id_shorthand"] == "lfmp"
+        assert details["name"] == "Mock Product"
+        assert details["version"] == "3.0.0"
 
     @pytest.mark.integration
     def test_product_add_writes_to_yaml(
@@ -299,7 +326,8 @@ class TestProductAddDialog:
         )
 
         assert result.exit_code == 0, result.exception
-        assert prompted_questions == [product_cli.PRODUCT_QUESTIONS]
+        assert len(prompted_questions) == 1
+        assert prompted_questions[0]["id"]["default"] == "linkfish_mock_product"
         product = yaml.safe_load(
             (coasti_instance_dir / "config" / "products.yml").read_text()
         )["products"][0]
@@ -373,10 +401,8 @@ class TestProductAddDialog:
         )
 
         assert result.exit_code == 0, result.exception
-        assert prompted_questions == [
-            product_cli.AUTH_QUESTIONS,
-            product_cli.PRODUCT_QUESTIONS,
-        ]
+        assert prompted_questions[0] is product_cli.AUTH_QUESTIONS
+        assert prompted_questions[1]["id"]["default"] == "linkfish_mock_product"
         product_id = f"mock_private_dialog_{secret_kind.lower().replace(' ', '_')}"
         products = yaml.safe_load(
             (coasti_instance_dir / "config" / "products.yml").read_text()
