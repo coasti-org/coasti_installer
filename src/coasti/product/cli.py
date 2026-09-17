@@ -174,17 +174,31 @@ def add(
     product = Product.draft(yaml_io)
     product.data.update(extra_data)
     repository_url = vcs_repo or product.data.get("vcs_repo")
+    repo_url_prev_try = None
+
+    # ------------------------------- Auth loop ------------------------------ #
 
     while True:
-        if repository_url is None:
-            repository_url = prompt_single("Url of the product's git repo:", type=str)
+        if repo_url is None:
+            repo_url = prompt_single(
+                "Url of the product's git repo:",
+                type=str,
+                default=repo_url_prev_try,
+            )
 
-        probe = check_access_to_git_repo(repository_url)
+        probe = check_access_to_git_repo(repo_url)
         if probe.is_accessible:
-            product.data["vcs_repo"] = repository_url
+            product.data["vcs_repo"] = repo_url
             product.data["vcs_auth_type"] = "skip"
             product.data["vcs_auth_value"] = AUTH_SKIP_SENTINEL
+            log.debug(f"Access check successful, no auth needed for {repo_url}")
             break
+
+        if probe.failure in [GitAccessFailure.NETWORK, GitAccessFailure.NOT_FOUND]:
+            log.warning(probe.failure_message)
+            repo_url_prev_try = repo_url
+            repo_url = None
+            continue
 
         probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
 
@@ -213,21 +227,23 @@ def add(
             https_token=product.vcs_auth_token,
             ssh_key_path=product.vcs_auth_sshkeypath,
         ):
-            probe = check_access_to_git_repo(repository_url)
+            probe = check_access_to_git_repo(repo_url)
             if probe.is_accessible:
+                log.debug(f"Auth setup done, can access {repo_url}")
                 break
 
             probe.exit_for_failures_except({GitAccessFailure.AUTHENTICATION})
 
-        log.error(
+        log.warning(
             "Could not access the repository with the provided authentication. "
-            "Please check the URL or credentials and try again."
+            "Please check the URL and credentials and try again."
         )
         if ensure_coasti_namespace(ctx).quiet:
             raise typer.Exit(code=1)
 
         # Retry, and allow user to correct url and auth
-        repository_url = None
+        repo_url_prev_try = repo_url
+        repo_url = None
 
     log.debug(f"{product.data=}")
     log.debug("Done with auth questions. Asking general questions")
