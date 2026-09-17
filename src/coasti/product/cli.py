@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from pathlib import Path
 from typing import Annotated
 
@@ -161,7 +162,6 @@ def add(
     yaml_io = ProductsYamlIO(coasti_ctx.base_dir)
 
     # Parse skip-prompt answers and internal variables for answers_file
-
     extra_data: ProductData = {}  # type: ignore # so be defensive!
     if data is not None:
         try:
@@ -173,7 +173,7 @@ def add(
 
     product = Product.draft(yaml_io)
     product.data.update(extra_data)
-    repository_url = vcs_repo or product.data.get("vcs_repo")
+    repo_url = vcs_repo or product.data.get("vcs_repo")
     repo_url_prev_try = None
 
     # ------------------------------- Auth loop ------------------------------ #
@@ -207,21 +207,16 @@ def add(
 
         auth_response = prompt_like_copier(
             questions=AUTH_QUESTIONS,
-            data={**extra_data, "vcs_repo": repository_url},
+            data={**extra_data, "vcs_repo": repo_url},
         )
-
-        log.debug(f"{auth_response=}")
 
         product.data.update(
             {
-                "vcs_repo": repository_url,
+                "vcs_repo": repo_url,
                 "vcs_auth_type": auth_response.answers["vcs_auth_type"],
                 "vcs_auth_value": auth_response.answers["vcs_auth_value"],
             }
         )
-
-        log.debug(f"{product.data=}")
-        log.debug(f"{product.vcs_auth_token=}, {product.vcs_auth_sshkeypath=}")
 
         with copier_git_injection(
             https_token=product.vcs_auth_token,
@@ -245,16 +240,30 @@ def add(
         repo_url_prev_try = repo_url
         repo_url = None
 
-    log.debug(f"{product.data=}")
-    log.debug("Done with auth questions. Asking general questions")
+    # -------------------------------- General ------------------------------- #
+
+    log.info("Repo Authentication successful. Next, some general questions.")
+
+    # try to infer the product id from remote metadata (fallback is repo url)
+    meta = product.get_product_details_from_remote()
+    log.debug(f"Details from coasti.yml: {meta=}")
+
+    # PS 2026-09-17: For now we use the discovered id only as a default value.
+    # This allows users to overwrite it (which they should not) but it gives
+    # admins some more flexibility. Let's evaluate how strict the product id
+    # concept needs to be, and adjust later.
+    _questions = deepcopy(PRODUCT_QUESTIONS)
+    if meta.get("id") is not None:
+        _questions["id"]["default"] = meta.get("id")
 
     p_res = prompt_like_copier(
-        questions=PRODUCT_QUESTIONS,
-        data={**extra_data, "vcs_repo": product.data["vcs_repo"]},
+        questions=_questions,
+        data={
+            **extra_data,
+            "vcs_repo": product.data["vcs_repo"],
+        },
     )
     product.data.update(p_res.answers)
-
-    log.debug(f"{product.data=}")
 
     if product.id in yaml_io.product_ids:
         if coasti_ctx.quiet or not prompt_single(

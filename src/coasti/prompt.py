@@ -300,8 +300,15 @@ def _jinja_env_like_copier():
         except Exception:
             return s
 
+    def realpath(value: Any) -> str:
+        """Resolve a path after rendering it from a question answer."""
+        if value is None:
+            return ""
+        return str(Path(str(value)).expanduser().resolve())
+
     env.filters["regex_replace"] = regex_replace
     env.filters["expanduser"] = expanduser
+    env.filters["realpath"] = realpath
     return env
 
 
@@ -315,6 +322,11 @@ def prompt_single(help: str, type: type[T] | None = None, **kwargs) -> T:
     - `secret`
     - `default`
     """
+
+    if kwargs.get("default") is None:
+        # None means that no default was provided; passing it to Copier makes
+        # it attempt to parse None as an answer for the question's type, and raise
+        kwargs.pop("default")
 
     if type is not None:
         if type in (bool, int, float, str):
