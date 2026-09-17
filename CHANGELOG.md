@@ -22,6 +22,9 @@ TLDR:
 
 - New command: `product remove`
 - `product add` workflow is now more interactive (and streamlined) - we check repo access _before_ querying for credentials.
+  We now also query a products' `coasti.yml` for refined user questions.
+- coasti installer prompts now look a bit different than product prompts ("🏝️").
+  This should help users to distinguish if they are adding to coasti, or already past product install, and answering product-related questions.
 
 ### Dev
 
