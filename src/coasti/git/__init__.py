@@ -171,7 +171,7 @@ class GitProbeResult:
 def check_access_to_git_repo(
     repo_url: str,
     *,
-    timeout_seconds: float = 5,
+    timeout_seconds: float = 30,
 ) -> GitProbeResult:
     """
     Probe if we can reach a repo using Copier's git command.
@@ -181,12 +181,16 @@ def check_access_to_git_repo(
     - no ssh key overrides
     - relies only on whatever git/ssh is already configured on the machine
 
+    To authenticate, wrap in a context:
+    with copier_git_injection(): ...
+
     Implementation: `git ls-remote <repo_url> -q`
 
-    TODO: Timeout seems unreliable (plumbum might be killing parent process,
-    but not children)
+    Note: The timeout might not fully propagate into the ssh command used
+    by git. To enforce a timeout there, edit your ssh config file.
     """
 
+    log.debug(f"Checking repo access... {repo_url=}")
     cmd = copier_vcs.get_git()["ls-remote", str(repo_url), "-q"]
     try:
         _code, _stdout, _stderr = cmd.run(timeout=timeout_seconds)
@@ -242,6 +246,7 @@ def get_git_or_exit():
     Without git, most commands around copier wont work.
     """
 
+    log.debug("Checking that git is installed")
     try:
         git_command = copier_vcs.get_git()
     except CommandNotFound:

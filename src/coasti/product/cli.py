@@ -154,6 +154,10 @@ def add(
             ' \'{"vcs_ref": "my_dev_branch"}\'',
         ),
     ] = None,
+    timeout: Annotated[
+        int,
+        typer.Option("--timeout", help="Timeout for repo access checks, in seconds."),
+    ] = 30,
 ):
     """Add a product to coasti"""
 
@@ -186,7 +190,7 @@ def add(
                 default=repo_url_prev_try,
             )
 
-        probe = check_access_to_git_repo(repo_url)
+        probe = check_access_to_git_repo(repo_url, timeout_seconds=timeout)
         if probe.is_accessible:
             product.data["vcs_repo"] = repo_url
             product.data["vcs_auth_type"] = "skip"
@@ -222,7 +226,7 @@ def add(
             https_token=product.vcs_auth_token,
             ssh_key_path=product.vcs_auth_sshkeypath,
         ):
-            probe = check_access_to_git_repo(repo_url)
+            probe = check_access_to_git_repo(repo_url, timeout_seconds=timeout)
             if probe.is_accessible:
                 log.debug(f"Auth setup done, can access {repo_url}")
                 break

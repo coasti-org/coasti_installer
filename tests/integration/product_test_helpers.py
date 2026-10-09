@@ -145,7 +145,11 @@ def force_authentication(monkeypatch: MonkeyPatch) -> None:
 
     unauthenticated_urls: set[str] = set()
 
-    def check_access_with_authentication(url: str) -> GitProbeResult:
+    def check_access_with_authentication(
+        url: str,
+        *,
+        timeout_seconds: float = 30,
+    ) -> GitProbeResult:
         if url not in unauthenticated_urls:
             unauthenticated_urls.add(url)
             log.debug(f"Test auth probe intentionally rejected: url={url}")
@@ -153,7 +157,7 @@ def force_authentication(monkeypatch: MonkeyPatch) -> None:
                 is_accessible=False,
                 failure=GitAccessFailure.AUTHENTICATION,
             )
-        result = real_check_access_to_git_repo(url)
+        result = real_check_access_to_git_repo(url, timeout_seconds=timeout_seconds)
         log.debug(
             "Test authenticated probe result: "
             f"url={url}, accessible={result.is_accessible}, "

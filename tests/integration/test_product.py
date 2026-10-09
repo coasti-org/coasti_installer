@@ -371,7 +371,7 @@ class TestProductAddDialog:
         monkeypatch.setattr(
             product_cli,
             "check_access_to_git_repo",
-            lambda _repository_url: next(access_results),
+            lambda _repository_url, *, timeout_seconds=30: next(access_results),
         )
 
         result = cli_runner.invoke(
