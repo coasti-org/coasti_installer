@@ -156,10 +156,7 @@ def add(
     ] = None,
     timeout: Annotated[
         int,
-        typer.Option(
-            "--timeout",
-            help="Timeout for repo access checks, in seconds."
-        ),
+        typer.Option("--timeout", help="Timeout for repo access checks, in seconds."),
     ] = 30,
 ):
     """Add a product to coasti"""
