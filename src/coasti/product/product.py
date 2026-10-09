@@ -22,12 +22,13 @@ import sys
 from contextlib import contextmanager
 from copy import deepcopy
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import cast
 
 import copier
 from ruamel.yaml import YAML, CommentedMap
 
-from coasti.git import copier_git_injection
+from coasti.git import copier_git_injection, get_git_or_exit
 from coasti.logger import log
 from coasti.prompt import PromptResponse
 
@@ -184,6 +185,9 @@ class Product:
 
         When using this, product.data contains non-validated values.
         It is your responsibility to replace them before writing!
+
+        DO NOT LOG product.data before calling .write(), as it might contain
+        a raw vcs auth token.
         """
 
         draft_data: ProductData = {
@@ -307,6 +311,61 @@ class Product:
 
         # Now we are sure that secrets are in file, so lets remove them from RAM
         self.data["vcs_auth_value"] = AUTH_FILE_SENTINEL
+
+    def get_product_details_from_remote(self) -> CommentedMap:
+        """
+        Infer the details like the product id from the coasti.yml in the remote repo.
+
+        Used during drafting / product add.
+        Once we are authenticated, download only the yaml from the main branch.
+        (this might differ from what we get later during install, if template
+        creators have updated this)
+        """
+
+        with copier_git_injection(
+            https_token=self.vcs_auth_token,
+            ssh_key_path=self.vcs_auth_sshkeypath,
+        ):
+            git = get_git_or_exit()
+            with TemporaryDirectory() as temp_dir:
+                # A shallow bare fetch avoids checking out the repository while
+                # still allowing this to work with both HTTPS and SSH remotes.
+                git["init", "--bare", temp_dir].run()
+                git[
+                    "-C",
+                    temp_dir,
+                    "fetch",
+                    "--depth=1",
+                    "--no-tags",
+                    self.data["vcs_repo"],
+                    "main",
+                ].run()
+
+                for meta_file in ("coasti.yml", "coasti.yaml"):
+                    try:
+                        _code, metadata, _error = git[
+                            "-C",
+                            temp_dir,
+                            "show",
+                            f"FETCH_HEAD:{meta_file}",
+                        ].run()
+                    except Exception:
+                        continue
+
+                    parsed_metadata = yaml.load(metadata)
+                    if not isinstance(parsed_metadata, CommentedMap):
+                        log.debug(
+                            f"{meta_file} in {self.data['vcs_repo']} "
+                            f"did not contain a YAML mapping: {parsed_metadata=}"
+                        )
+                        return CommentedMap()
+                    return parsed_metadata
+
+        log.debug(
+            f"Could not find coasti.yml or coasti.yaml on the main branch of "
+            f"{self.data['vcs_repo']}"
+        )
+        return CommentedMap()
 
     def install(self):
         """

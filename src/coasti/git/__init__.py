@@ -121,14 +121,10 @@ class GitProbeResult:
     def __bool__(self) -> bool:
         return self.is_accessible
 
-    def exit_for_failures_except(
-        self,
-        failures_not_to_raise: Collection[GitAccessFailure] = frozenset(),
-    ) -> None:
-        """Log and exit for a failure unless it is explicitly exempted."""
-
-        if self.failure is None or self.failure in failures_not_to_raise:
-            return
+    @property
+    def failure_message(self):
+        if self.failure is None:
+            return None
 
         messages: dict[GitAccessFailure, str] = {
             GitAccessFailure.AUTHENTICATION: (
@@ -152,18 +148,30 @@ class GitProbeResult:
                 "Git could not find the repository. Check the repository URL."
             ),
             GitAccessFailure.UNKNOWN: (
-                "Git could not access the repository. Check the URL and Git "
-                "configuration."
+                "Git could not access the repository due to an unknwon error. "
+                "Enable debug logging and try again."
             ),
         }
-        log.error(messages[self.failure])
+
+        return messages[self.failure]
+
+    def exit_for_failures_except(
+        self,
+        failures_not_to_raise: Collection[GitAccessFailure] = frozenset(),
+    ) -> None:
+        """Log and exit for a failure unless it is explicitly exempted."""
+
+        if self.failure is None or self.failure in failures_not_to_raise:
+            return
+
+        log.error(self.failure_message)
         raise typer.Exit(code=1)
 
 
 def check_access_to_git_repo(
     repo_url: str,
     *,
-    timeout_seconds: float = 15,
+    timeout_seconds: float = 5,
 ) -> GitProbeResult:
     """
     Probe if we can reach a repo using Copier's git command.
@@ -174,6 +182,9 @@ def check_access_to_git_repo(
     - relies only on whatever git/ssh is already configured on the machine
 
     Implementation: `git ls-remote <repo_url> -q`
+
+    TODO: Timeout seems unreliable (plumbum might be killing parent process,
+    but not children)
     """
 
     cmd = copier_vcs.get_git()["ls-remote", str(repo_url), "-q"]
@@ -181,9 +192,7 @@ def check_access_to_git_repo(
         _code, _stdout, _stderr = cmd.run(timeout=timeout_seconds)
         return GitProbeResult(is_accessible=True)
     except ProcessTimedOut:
-        log.debug(
-            f"Git repo access check timed out after {timeout_seconds}: {repo_url}"
-        )
+        log.debug(f"Git repo access check timed out after {timeout_seconds} seconds")
         return GitProbeResult(
             is_accessible=False,
             failure=GitAccessFailure.TIMEOUT,

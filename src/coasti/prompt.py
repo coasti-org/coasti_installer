@@ -179,12 +179,20 @@ def _ask_questions_like_copier(
 
     # Mimic Worker._ask() loop
     for var_name, details in questions_data.items():
+        # Make sensitive questions visually distinct before Question builds the
+        # questionary structure that renders the prompt.
         q = Question(
             answers=answers,
             context=context,
             jinja_env=jinja_env,
             var_name=var_name,
-            **details,
+            # use a coasti specific icon, to make it easier to tell
+            # it this is a coasti, or a typer question
+            # To keep things simpler, we use the same icon for secrets.
+            **{
+                **details,
+                "qmark": "🏝️" if details.get("secret") else "🏝️",
+            },
         )
 
         # 1) If last answer exists but cannot be parsed/validated, drop it
@@ -300,8 +308,15 @@ def _jinja_env_like_copier():
         except Exception:
             return s
 
+    def realpath(value: Any) -> str:
+        """Resolve a path after rendering it from a question answer."""
+        if value is None:
+            return ""
+        return str(Path(str(value)).expanduser().resolve())
+
     env.filters["regex_replace"] = regex_replace
     env.filters["expanduser"] = expanduser
+    env.filters["realpath"] = realpath
     return env
 
 
@@ -315,6 +330,11 @@ def prompt_single(help: str, type: type[T] | None = None, **kwargs) -> T:
     - `secret`
     - `default`
     """
+
+    if kwargs.get("default") is None:
+        # None means that no default was provided; passing it to Copier makes
+        # it attempt to parse None as an answer for the question's type, and raise
+        kwargs.pop("default")
 
     if type is not None:
         if type in (bool, int, float, str):
