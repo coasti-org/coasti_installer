@@ -28,7 +28,11 @@ from typing import cast
 import copier
 from ruamel.yaml import YAML, CommentedMap
 
-from coasti.git import copier_git_injection, sanitize_repo_url_for_copier, get_git_or_exit
+from coasti.git import (
+    copier_git_injection,
+    get_git_or_exit,
+    sanitize_repo_url_for_copier,
+)
 from coasti.logger import log
 from coasti.prompt import PromptResponse
 
