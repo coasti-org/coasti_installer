@@ -11,6 +11,13 @@ TLDR:
 - Breaking Changes 1.0.0 (Major Version)
 
 
+## Unreleased
+
+### Fixed
+
+- `product add` now prompts for the repository URL when none is given, instead of
+  probing an empty URL and failing with a confusing "unknown error" (regression in 0.3.0).
+
 ## 0.3.0 - 2026-10-09
 
 ### Fixed
