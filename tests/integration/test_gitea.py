@@ -5,7 +5,11 @@ from pathlib import Path
 
 import pytest
 
-from coasti.git import check_access_to_git_repo, copier_git_injection
+from coasti.git import (
+    GitAccessFailure,
+    check_access_to_git_repo,
+    copier_git_injection,
+)
 
 
 @pytest.mark.integration
@@ -19,6 +23,25 @@ def test_private_readme_repository_is_accessible_with_http_token(
         f"http://coasti-test:{readme_only_repository.http_token}@",
     )
     assert check_access_to_git_repo(authenticated_url)
+
+
+@pytest.mark.integration
+def test_private_http_probe_does_not_prompt_and_reports_authentication(
+    readme_only_repository,
+):
+    """A private http(s) repo must fail as AUTHENTICATION, not block on a git prompt.
+
+    If git were allowed to prompt for credentials, this test would hang (or the
+    probe would report UNKNOWN); coasti relies on this failing fast so it can
+    run its own authentication questions.
+    """
+
+    result = check_access_to_git_repo(
+        readme_only_repository.http_url, timeout_seconds=5
+    )
+
+    assert not result.is_accessible
+    assert result.failure is GitAccessFailure.AUTHENTICATION
 
 
 @pytest.mark.integration
