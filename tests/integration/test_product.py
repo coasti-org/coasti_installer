@@ -172,6 +172,38 @@ class TestPublicProductAdd:
         assert (product_directory / "config" / ".env").is_file()
 
     @pytest.mark.integration
+    def test_product_install_accepts_https_url_without_git_suffix(
+        self,
+        cli_runner: CliRunner,
+        coasti_instance_dir: Path,
+        public_mock_product_repository,
+    ):
+        """Self-hosted https URLs without a `.git` suffix must still install.
+
+        Copier's URL detection mistakes them for local directories and fails
+        with "Local template must be a directory", so coasti must force the
+        git path when handing the URL to Copier.
+        """
+        url_without_suffix = public_mock_product_repository.http_url.removesuffix(
+            ".git"
+        )
+        product_id = "mock_no_git_suffix"
+
+        result = add_product(
+            cli_runner,
+            coasti_instance_dir,
+            url_without_suffix,
+            product_id,
+            vcs_auth_type="skip",
+        )
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        result = install_product(cli_runner, coasti_instance_dir, product_id)
+        assert result.exit_code == 0, f"{result.exception!r}; {result.output!r}"
+
+        assert (coasti_instance_dir / "products" / product_id / "README.md").is_file()
+
+    @pytest.mark.integration
     @pytest.mark.parametrize(
         ("vcs_ref", "expected_version"),
         [

@@ -333,3 +333,26 @@ def get_git_or_exit():
         )
 
     return git_command
+
+
+def sanitize_repo_url_for_copier(repo_url: str) -> str:
+    """Return a repo URL that Copier reliably recognises as a git remote.
+
+    Copier only auto-detects a remote for ``http(s)`` URLs that end in ``.git``
+    or point at github.com / gitlab.com. A self-hosted repository without the
+    ``.git`` suffix is mistaken for a local directory and Copier fails with
+    ``ValueError: Local template must be a directory.``
+
+    The ``git+`` prefix forces Copier down the git path (it strips the prefix
+    before calling git), which works regardless of host or suffix.
+
+    Note that ``git ls-remote`` — and therefore coasti's own access probe —
+    already accepts such URLs, so this normalisation is only needed when
+    handing the URL to Copier. The plain URL stays in ``products.yml``.
+    """
+
+    if repo_url.startswith("git+"):
+        return repo_url
+    if repo_url.startswith(("http://", "https://")) and not repo_url.endswith(".git"):
+        return f"git+{repo_url}"
+    return repo_url

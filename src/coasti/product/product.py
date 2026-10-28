@@ -28,7 +28,7 @@ from typing import cast
 import copier
 from ruamel.yaml import YAML, CommentedMap
 
-from coasti.git import copier_git_injection, get_git_or_exit
+from coasti.git import copier_git_injection, sanitize_repo_url_for_copier, get_git_or_exit
 from coasti.logger import log
 from coasti.prompt import PromptResponse
 
@@ -380,7 +380,9 @@ class Product:
         ):
             log.info(f"Using copier to install {self.id}. Downloading...")
             copier.run_copy(
-                src_path=self.data["vcs_repo"],
+                # Force Copier to treat self-hosted http(s) URLs without a
+                # `.git` suffix as git remotes instead of local directories.
+                src_path=sanitize_repo_url_for_copier(self.data["vcs_repo"]),
                 dst_path=self.dst_path,
                 vcs_ref=self.data["vcs_ref"],
                 unsafe=True,
