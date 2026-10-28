@@ -10,6 +10,7 @@ from coasti.prompt import (
     QuestionsDict,
     _jinja_env_like_copier,
     prompt_like_copier,
+    prompt_single,
 )
 
 
@@ -269,3 +270,60 @@ def test_prompt_like_copier_renders_templated_defaults_with_custom_filters():
     # when=false, so it is hidden but keeps its (rendered) default
     assert res.hidden == {"ssh_key_path"}
     assert res.answers["ssh_key_path"] == str(Path("~/.ssh/id_rsa").expanduser())
+
+
+def _capture_prompt_single_question(monkeypatch: MonkeyPatch, answer: str) -> dict:
+    """Patch prompt_like_copier and return the question dict prompt_single built."""
+
+    captured: dict = {}
+
+    class _StubResponse:
+        answers = {"temp": answer}
+
+    def fake_prompt_like_copier(questions):
+        captured.update(questions)
+        return _StubResponse()
+
+    monkeypatch.setattr("coasti.prompt.prompt_like_copier", fake_prompt_like_copier)
+    return captured
+
+
+def test_prompt_single_without_default_does_not_raise():
+    """Regression: a missing `default` kwarg must not raise KeyError.
+
+    `product install` without an argument prompts for the product id and does
+    not pass a default; the guard dropping `None` defaults used to pop a key
+    that was never there.
+    """
+
+    with MonkeyPatch.context() as mp:
+        captured = _capture_prompt_single_question(mp, "my_product")
+
+        result = prompt_single(
+            "Select the product to use:", type=str, choices=["my_product"]
+        )
+
+    assert result == "my_product"
+    question = captured["temp"]
+    assert "default" not in question
+    assert question["type"] == "str"
+    assert question["choices"] == ["my_product"]
+
+
+def test_prompt_single_with_explicit_none_default_does_not_raise():
+    with MonkeyPatch.context() as mp:
+        captured = _capture_prompt_single_question(mp, "my_product")
+
+        result = prompt_single("Select the product:", type=str, default=None)
+
+    assert result == "my_product"
+    assert "default" not in captured["temp"]
+
+
+def test_prompt_single_keeps_provided_default():
+    with MonkeyPatch.context() as mp:
+        captured = _capture_prompt_single_question(mp, "my_product")
+
+        prompt_single("Select the product:", type=str, default="my_product")
+
+    assert captured["temp"]["default"] == "my_product"
