@@ -18,6 +18,29 @@ from plumbum.commands.processes import (
 
 from coasti.logger import log
 
+# Environment that stops git (and the ssh/askpass helpers it shells out to) from
+# ever asking the user for credentials. This is the baseline for *every* git
+# command coasti issues, not just the ones that carry injected credentials:
+# otherwise git's own prompt/credential-helper can block or shadow coasti's
+# authentication flow before we get a chance to run it.
+NON_INTERACTIVE_GIT_ENV: dict[str, str] = {
+    # Never prompt on the terminal (https username/password, passphrases).
+    "GIT_TERMINAL_PROMPT": "0",
+    # Git Credential Manager: fail instead of popping up a GUI dialog.
+    "GCM_INTERACTIVE": "false",
+    # ssh: never use askpass for passphrases/host-key confirmation.
+    "SSH_ASKPASS_REQUIRE": "never",
+}
+
+
+def get_non_interactive_git():
+    """Return copier's git command with all interactive prompts disabled.
+
+    Applies :data:`NON_INTERACTIVE_GIT_ENV` on top of whatever env the current
+    command already carries, so it composes with ``copier_git_injection``.
+    """
+    return copier_vcs.get_git().with_env(**NON_INTERACTIVE_GIT_ENV)
+
 
 @contextmanager
 def copier_git_injection(
@@ -49,7 +72,7 @@ def copier_git_injection(
     original_get_git = copier_vcs.get_git
 
     try:
-        extra_env: dict[str, Any] = {}
+        extra_env: dict[str, Any] = dict(NON_INTERACTIVE_GIT_ENV)
         if https_token:
             with resources.as_file(
                 resources.files("coasti.git").joinpath(
@@ -60,11 +83,6 @@ def copier_git_injection(
                 # scripts simply return the token env var
 
             extra_env["GIT_AUTH_TOKEN"] = https_token
-
-            # Some git flows require the following to force askpass in non-tty contexts,
-            # or gui popups (git-for-windows)
-            extra_env["GIT_TERMINAL_PROMPT"] = "0"
-            extra_env["GCM_INTERACTIVE"] = "false"
 
         elif ssh_key_path:
             if Path(ssh_key_path).is_file():
@@ -84,9 +102,13 @@ def copier_git_injection(
 
         def patched_get_git(*args, **kwargs):
             git = original_get_git()
-            cmd = git.with_env(**extra_env) if extra_env else git
-            # log.debug(f"using git command: {cmd=} {extra_env=}")
-            return cmd
+            if https_token:
+                # Make the injected token authoritative: ignore any ambient
+                # credential helper, which could otherwise supply different
+                # credentials or prompt on its own.
+                git = git["-c", "credential.helper="]
+            # log.debug(f"using git command: {git=} {extra_env=}")
+            return git.with_env(**extra_env)
 
         copier_vcs.get_git = patched_get_git
         yield
@@ -168,6 +190,43 @@ class GitProbeResult:
         raise typer.Exit(code=1)
 
 
+def classify_git_failure(detail: str) -> GitAccessFailure:
+    """Map git's stderr/stdout to a coarse failure reason."""
+
+    detail = detail.lower()
+    if "host key verification failed" in detail or ("authenticity of host" in detail):
+        return GitAccessFailure.HOST_VERIFICATION
+    if "ssl certificate problem" in detail:
+        return GitAccessFailure.TLS_CERTIFICATE
+    if "repository not found" in detail:
+        return GitAccessFailure.NOT_FOUND
+    if any(
+        message in detail
+        for message in (
+            "authentication failed",
+            "invalid username or password",
+            "http basic: access denied",
+            # git with prompts disabled (GIT_TERMINAL_PROMPT=0) reports this
+            # instead of a plain "authentication failed":
+            "could not read username",
+            "could not read password",
+            "terminal prompts disabled",
+            "permission denied",
+        )
+    ):
+        return GitAccessFailure.AUTHENTICATION
+    if any(
+        message in detail
+        for message in (
+            "could not resolve host",
+            "connection refused",
+            "network is unreachable",
+        )
+    ):
+        return GitAccessFailure.NETWORK
+    return GitAccessFailure.UNKNOWN
+
+
 def check_access_to_git_repo(
     repo_url: str,
     *,
@@ -191,7 +250,7 @@ def check_access_to_git_repo(
     """
 
     log.debug(f"Checking repo access... {repo_url=}")
-    cmd = copier_vcs.get_git()["ls-remote", str(repo_url), "-q"]
+    cmd = get_non_interactive_git()["ls-remote", str(repo_url), "-q"]
     try:
         _code, _stdout, _stderr = cmd.run(timeout=timeout_seconds)
         return GitProbeResult(is_accessible=True)
@@ -206,35 +265,11 @@ def check_access_to_git_repo(
         stderr = (e.stderr or "").strip().replace("\n", " ")
         stdout = (e.stdout or "").strip().replace("\n", " ")
         code = e.retcode
-        log.debug(f"Git repo access check failed: {code=} {stdout=} {stderr=}")
         detail = stderr or stdout
-
-        def _classify_git_failure(_detail: str) -> GitAccessFailure:
-            detail = _detail.lower()
-            if "host key verification failed" in detail or (
-                "authenticity of host" in detail
-            ):
-                return GitAccessFailure.HOST_VERIFICATION
-            if "ssl certificate problem" in detail:
-                return GitAccessFailure.TLS_CERTIFICATE
-            if "repository not found" in detail:
-                return GitAccessFailure.NOT_FOUND
-            if "authentication failed" in detail or "permission denied" in (detail):
-                return GitAccessFailure.AUTHENTICATION
-            if any(
-                message in detail
-                for message in (
-                    "could not resolve host",
-                    "connection refused",
-                    "network is unreachable",
-                )
-            ):
-                return GitAccessFailure.NETWORK
-            return GitAccessFailure.UNKNOWN
-
+        log.debug(f"Git repo access check failed: {code=} {stdout=} {stderr=}")
         return GitProbeResult(
             is_accessible=False,
-            failure=_classify_git_failure(detail),
+            failure=classify_git_failure(stderr or stdout),
             detail=detail or None,
         )
 

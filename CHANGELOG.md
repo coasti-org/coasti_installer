@@ -20,6 +20,11 @@ TLDR:
 - Commands that prompt for a product id when no argument is given (`product install`,
   `product update`, `product remove`) no longer crash with `KeyError: 'default'`
   (regression in 0.3.0).
+- coasti no longer lets git prompt for credentials. Every git command (including the
+  unauthenticated repo access probe) now runs with terminal/GUI/ssh prompts disabled,
+  so a private repo fails fast as an authentication error and coasti's own token or
+  SSH key handling takes over. Injected HTTPS tokens are also made authoritative by
+  ignoring ambient git credential helpers.
 
 ## 0.3.0 - 2026-10-09
 
