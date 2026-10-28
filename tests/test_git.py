@@ -7,6 +7,7 @@ to git, which is what keeps git from prompting for credentials.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import pytest
 from plumbum.commands.processes import ProcessExecutionError
@@ -94,7 +95,8 @@ def test_copier_git_injection_with_https_token(monkeypatch):
     _install_recording_git(monkeypatch)
 
     with copier_git_injection(https_token="secret-token"):
-        command = git.copier_vcs.get_git()
+        # get_git is monkeypatched, but its static type is plumbum's BaseCommand.
+        command = cast(RecordingGit, git.copier_vcs.get_git())
 
     assert command.env["GIT_AUTH_TOKEN"] == "secret-token"
     assert command.env["GIT_ASKPASS"].endswith((".sh", ".bat"))
@@ -127,7 +129,7 @@ def test_copier_git_injection_with_ssh_key_disables_prompts(
     key.write_text("not a real key")
 
     with copier_git_injection(ssh_key_path=key):
-        command = git.copier_vcs.get_git()
+        command = cast(RecordingGit, git.copier_vcs.get_git())
 
     assert "GIT_AUTH_TOKEN" not in command.env
     assert "GIT_ASKPASS" not in command.env
@@ -169,7 +171,7 @@ def test_probe_classifies_disabled_prompt_as_authentication(monkeypatch):
     class FailingGit(RecordingGit):
         def run(self, *args, **kwargs):
             raise ProcessExecutionError(
-                argv=("git", "ls-remote"),
+                argv=["git", "ls-remote"],
                 retcode=128,
                 stdout="",
                 stderr=(

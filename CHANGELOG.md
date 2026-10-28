@@ -30,6 +30,10 @@ TLDR:
   Caveat: if the ambient helper holds a *different* account's credential, it wins over
   the token you passed, and the resulting authentication error does not mention that
   token.
+- `product install` now works with self-hosted `http(s)` repository URLs that do not
+  end in `.git`. Copier's URL detection treated these as local directories and failed
+  with `ValueError: Local template must be a directory`; coasti now forces the git path
+  for Copier by prefixing `git+`.
 
 ## 0.3.0 - 2026-10-09
 
