@@ -33,15 +33,6 @@ NON_INTERACTIVE_GIT_ENV: dict[str, str] = {
 }
 
 
-def get_non_interactive_git():
-    """Return copier's git command with all interactive prompts disabled.
-
-    Applies :data:`NON_INTERACTIVE_GIT_ENV` on top of whatever env the current
-    command already carries, so it composes with ``copier_git_injection``.
-    """
-    return copier_vcs.get_git().with_env(**NON_INTERACTIVE_GIT_ENV)
-
-
 @contextmanager
 def copier_git_injection(
     *,
@@ -101,12 +92,26 @@ def copier_git_injection(
                 log.warning(f"'{ssh_key_path}' is not a valid path for an ssh key.")
 
         def patched_get_git(*args, **kwargs):
-            git = original_get_git()
-            if https_token:
-                # Make the injected token authoritative: ignore any ambient
-                # credential helper, which could otherwise supply different
-                # credentials or prompt on its own.
-                git = git["-c", "credential.helper="]
+            # NOTE: we deliberately do *not* pass `-c credential.helper=`, i.e. we
+            # leave an ambient credential helper (e.g. Git Credential Manager)
+            # intact: it keeps working and wins whenever it holds a credential,
+            # and the credential coasti provides is only a fallback. Caveat: if the
+            # ambient helper holds a *different* account's credential, it wins over
+            # the token we injected, and the resulting auth failure looks unrelated
+            # to that token. Prompting is still impossible, see
+            # NON_INTERACTIVE_GIT_ENV.
+            git = original_get_git(*args, **kwargs)
+            if not ssh_key_path and not https_token:
+                log.debug(
+                    "No authentication set: Your repo is either public, or "
+                    "ambient git authentication might be used "
+                    "(e.g. your Git Credential Manager). If it has no stored "
+                    "credential, you can also authenticate once in a normal shell, "
+                    "outside coasti:\n"
+                    "    git ls-remote <repo-url>\n"
+                    "or, with Git Credential Manager: "
+                    "git credential-manager github login"
+                )
             # log.debug(f"using git command: {git=} {extra_env=}")
             return git.with_env(**extra_env)
 
@@ -250,7 +255,11 @@ def check_access_to_git_repo(
     """
 
     log.debug(f"Checking repo access... {repo_url=}")
-    cmd = get_non_interactive_git()["ls-remote", str(repo_url), "-q"]
+    cmd = copier_vcs.get_git().with_env(**NON_INTERACTIVE_GIT_ENV)[
+        "ls-remote",
+        str(repo_url),
+        "-q",
+    ]
     try:
         _code, _stdout, _stderr = cmd.run(timeout=timeout_seconds)
         return GitProbeResult(is_accessible=True)

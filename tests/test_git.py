@@ -18,7 +18,6 @@ from coasti.git import (
     check_access_to_git_repo,
     classify_git_failure,
     copier_git_injection,
-    get_non_interactive_git,
 )
 
 
@@ -26,6 +25,7 @@ class RecordingGit:
     """Minimal stand-in for a plumbum command that records env and args."""
 
     instances: list[RecordingGit] = []
+    get_git_calls: list[tuple[tuple, dict]] = []
 
     def __init__(self, env: dict[str, str] | None = None, args: tuple = ()):
         self.env = dict(env or {})
@@ -52,8 +52,10 @@ def _install_recording_git(monkeypatch) -> list[RecordingGit]:
     """Patch copier's get_git to hand out RecordingGit instances."""
 
     RecordingGit.instances = []
+    RecordingGit.get_git_calls = []
 
-    def get_git() -> RecordingGit:
+    def get_git(*args, **kwargs) -> RecordingGit:
+        RecordingGit.get_git_calls.append((args, kwargs))
         return RecordingGit()
 
     monkeypatch.setattr(git.copier_vcs, "get_git", get_git)
@@ -66,15 +68,6 @@ def test_non_interactive_env_disables_all_prompt_sources():
     assert NON_INTERACTIVE_GIT_ENV["GIT_TERMINAL_PROMPT"] == "0"
     assert NON_INTERACTIVE_GIT_ENV["GCM_INTERACTIVE"] == "false"
     assert NON_INTERACTIVE_GIT_ENV["SSH_ASKPASS_REQUIRE"] == "never"
-
-
-def test_get_non_interactive_git_applies_env(monkeypatch):
-    _install_recording_git(monkeypatch)
-
-    command = get_non_interactive_git()
-
-    for key, value in NON_INTERACTIVE_GIT_ENV.items():
-        assert command.env[key] == value
 
 
 def test_check_access_probe_never_prompts(monkeypatch):
@@ -96,7 +89,7 @@ def test_check_access_probe_never_prompts(monkeypatch):
 
 
 def test_copier_git_injection_with_https_token(monkeypatch):
-    """Token injection must win over ambient credential helpers."""
+    """The token is offered via askpass, without disabling ambient helpers."""
 
     _install_recording_git(monkeypatch)
 
@@ -107,9 +100,23 @@ def test_copier_git_injection_with_https_token(monkeypatch):
     assert command.env["GIT_ASKPASS"].endswith((".sh", ".bat"))
     for key, value in NON_INTERACTIVE_GIT_ENV.items():
         assert command.env[key] == value
-    # Empty credential.helper resets any globally configured helper, so it
-    # cannot shadow the injected token or prompt on its own.
-    assert command.args == ("-c", "credential.helper=")
+    # We deliberately do *not* reset credential.helper: an ambient helper (e.g.
+    # Git Credential Manager) keeps working and wins if it has a stored
+    # credential, our token is only a fallback. It still cannot prompt, because
+    # the env above disables GCM/terminal prompts.
+    assert command.args == ()
+
+
+def test_copier_git_injection_forwards_get_git_arguments(monkeypatch):
+    """copier calls get_git(context_dir=...); the patched version must not eat it."""
+
+    _install_recording_git(monkeypatch)
+    template_dir = Path("/some/template")
+
+    with copier_git_injection(https_token="secret-token"):
+        git.copier_vcs.get_git(context_dir=template_dir)
+
+    assert RecordingGit.get_git_calls == [((), {"context_dir": template_dir})]
 
 
 def test_copier_git_injection_with_ssh_key_disables_prompts(
