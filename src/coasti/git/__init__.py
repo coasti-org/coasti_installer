@@ -148,7 +148,7 @@ class GitProbeResult:
                 "Git could not find the repository. Check the repository URL."
             ),
             GitAccessFailure.UNKNOWN: (
-                "Git could not access the repository due to an unknwon error. "
+                "Git could not access the repository due to an unknown error. "
                 "Enable debug logging and try again."
             ),
         }

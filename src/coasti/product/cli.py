@@ -177,7 +177,9 @@ def add(
 
     product = Product.draft(yaml_io)
     product.data.update(extra_data)
-    repo_url = vcs_repo or product.data.get("vcs_repo")
+    # Product.draft() seeds vcs_repo with "", so treat empty values as
+    # missing to make sure we prompt for a URL instead of probing an empty one.
+    repo_url = vcs_repo or product.data.get("vcs_repo") or None
     repo_url_prev_try = None
 
     # ------------------------------- Auth loop ------------------------------ #
