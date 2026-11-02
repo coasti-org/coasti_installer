@@ -11,6 +11,30 @@ TLDR:
 - Breaking Changes 1.0.0 (Major Version)
 
 
+## Unreleased
+
+### Fixed
+
+- `product add` now prompts for the repository URL when none is given, instead of
+  probing an empty URL and failing with a confusing "unknown error" (regression in 0.3.0).
+- Commands that prompt for a product id when no argument is given (`product install`,
+  `product update`, `product remove`) no longer crash with `KeyError: 'default'`
+  (regression in 0.3.0).
+- coasti no longer lets git prompt for credentials. Every git command (including the
+  unauthenticated repo access probe) now runs with terminal/GUI/ssh prompts disabled,
+  so a private repo fails fast as an authentication error and coasti's own token or
+  SSH key handling takes over.
+  A git credential helper you have configured (e.g. Git Credential Manager) is left
+  intact: it keeps working and takes precedence whenever it holds a credential, and a
+  coasti-provided HTTPS token or SSH key is used as a fallback.
+  Caveat: if the ambient helper holds a *different* account's credential, it wins over
+  the token you passed, and the resulting authentication error does not mention that
+  token.
+- `product install` now works with self-hosted `http(s)` repository URLs that do not
+  end in `.git`. Copier's URL detection treated these as local directories and failed
+  with `ValueError: Local template must be a directory`; coasti now forces the git path
+  for Copier by prefixing `git+`.
+
 ## 0.3.0 - 2026-10-09
 
 ### Fixed

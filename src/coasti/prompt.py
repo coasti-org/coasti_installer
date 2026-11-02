@@ -333,8 +333,9 @@ def prompt_single(help: str, type: type[T] | None = None, **kwargs) -> T:
 
     if kwargs.get("default") is None:
         # None means that no default was provided; passing it to Copier makes
-        # it attempt to parse None as an answer for the question's type, and raise
-        kwargs.pop("default")
+        # it attempt to parse None as an answer for the question's type, and raise.
+        # pop's default is needed because the key may be absent entirely.
+        kwargs.pop("default", None)
 
     if type is not None:
         if type in (bool, int, float, str):
