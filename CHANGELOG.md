@@ -11,7 +11,7 @@ TLDR:
 - Breaking Changes 1.0.0 (Major Version)
 
 
-## Unreleased
+## 0.3.1 - 2026-11-02
 
 ### Fixed
 
